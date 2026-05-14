@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: 24 40% 5%;
+  --foreground: 38 50% 82%;
+
+  --card: 24 35% 9%;
+  --card-foreground: 38 50% 82%;
+  --card-border: 28 45% 20%;
+
+  --popover: 24 35% 9%;
+  --popover-foreground: 38 50% 82%;
+  --popover-border: 28 45% 20%;
+
+  --primary: 38 70% 48%;
+  --primary-foreground: 24 40% 5%;
+  --primary-border: hsl(38 70% 40%);
+
+  --secondary: 24 30% 16%;
+  --secondary-foreground: 38 45% 75%;
+  --secondary-border: hsl(24 30% 22%);
+
+  --muted: 24 30% 13%;
+  --muted-foreground: 28 20% 55%;
+  --muted-border: hsl(24 30% 18%);
+
+  --accent: 28 60% 25%;
+  --accent-foreground: 38 50% 82%;
+  --accent-border: hsl(28 60% 32%);
+
+  --destructive: 0 65% 45%;
+  --destructive-foreground: 38 50% 92%;
+  --destructive-border: hsl(0 65% 38%);
+
+  --border: 28 40% 18%;
+  --input: 28 40% 18%;
+  --ring: 38 65% 45%;
+
+  --chart-1: 38 70% 48%;
+  --chart-2: 210 65% 48%;
+  --chart-3: 145 50% 40%;
+  --chart-4: 0 60% 50%;
+  --chart-5: 270 50% 50%;
+
+  --sidebar: 24 40% 7%;
+  --sidebar-foreground: 38 50% 80%;
+  --sidebar-border: 28 40% 16%;
+  --sidebar-primary: 38 70% 48%;
+  --sidebar-primary-foreground: 24 40% 5%;
+  --sidebar-primary-border: hsl(38 70% 40%);
+  --sidebar-accent: 28 55% 22%;
+  --sidebar-accent-foreground: 38 50% 82%;
+  --sidebar-accent-border: hsl(28 55% 28%);
+  --sidebar-ring: 38 65% 45%;
+
+  --app-font-sans: 'Georgia', serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: Menlo, monospace;
+  --radius: 0.5rem;
+
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(255,200,100,.04);
+  --elevate-2: rgba(255,200,100,.09);
+  --button-outline: rgba(255,200,100,.12);
+  --badge-outline: rgba(255,200,100,.06);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: Georgia, serif;
+  }
+  #root {
+    width: 100vw;
+    height: 100vh;
+  }
+}
