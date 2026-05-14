@@ -104,6 +104,8 @@ function getLevelForXp(xp: number): number {
 }
 
 
+const DEFAULT_UPGRADES = { cook: 0 as const, bard: false };
+
 function buildFreshState(): GameState {
   return {
     gold: 30,
@@ -113,6 +115,7 @@ function buildFreshState(): GameState {
     gamePhase: 'playing',
     selectedAdventurerId: null,
     showQuestBoard: false,
+    upgrades: { ...DEFAULT_UPGRADES },
   };
 }
 
@@ -155,6 +158,7 @@ function loadFromStorage(): GameState {
       adventurers: persistedAdventurers,
       selectedAdventurerId: null,
       showQuestBoard: false,
+      upgrades: parsed.upgrades ?? { ...DEFAULT_UPGRADES },
     };
     syncCountersFromState(restored);
     return restored;
@@ -280,7 +284,8 @@ function reducer(state: GameState, action: GameAction): GameState {
       let logMsg: string;
 
       if (action.success) {
-        const xpGain = Math.ceil(quest.powerRequired * 1.2);
+        const baseXp = Math.ceil(quest.powerRequired * 1.2);
+        const xpGain = state.upgrades.bard ? Math.ceil(baseXp * 1.25) : baseXp;
         newAdventurers = state.adventurers.map(adv => {
           if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
           const newHp = Math.max(0, adv.hp - damagePerAdv);
@@ -417,14 +422,48 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'RECOVER_HP': {
       if (state.gamePhase !== 'playing') return state;
+      const hpPerTick = state.upgrades.cook === 2 ? 6 : state.upgrades.cook === 1 ? 3 : 1;
       return {
         ...state,
         adventurers: state.adventurers.map(a => {
           if (a.status !== 'idle' && a.status !== 'recruited') return a;
           if (a.hp >= a.maxHp) return a;
-          return { ...a, hp: Math.min(a.maxHp, a.hp + 1) };
+          return { ...a, hp: Math.min(a.maxHp, a.hp + hpPerTick) };
         }),
       };
+    }
+
+    case 'HIRE_UPGRADE': {
+      if (state.gamePhase !== 'playing') return state;
+      const { upgrade } = action;
+      if (upgrade === 'cook') {
+        if (state.upgrades.cook >= 1 || state.gold < 80) return state;
+        return {
+          ...state,
+          gold: state.gold - 80,
+          upgrades: { ...state.upgrades, cook: 1 },
+          gameLog: addLog(state.gameLog, 'A cook joins your tavern!'),
+        };
+      }
+      if (upgrade === 'cook_plus') {
+        if (state.upgrades.cook !== 1 || state.gold < 160) return state;
+        return {
+          ...state,
+          gold: state.gold - 160,
+          upgrades: { ...state.upgrades, cook: 2 },
+          gameLog: addLog(state.gameLog, 'Your cook has mastered the kitchen! (Cook+)'),
+        };
+      }
+      if (upgrade === 'bard') {
+        if (state.upgrades.bard || state.gold < 60) return state;
+        return {
+          ...state,
+          gold: state.gold - 60,
+          upgrades: { ...state.upgrades, bard: true },
+          gameLog: addLog(state.gameLog, 'A bard joins your tavern, filling it with music!'),
+        };
+      }
+      return state;
     }
 
     default:
@@ -577,6 +616,10 @@ export function useGameState() {
     dispatch({ type: 'NEW_GAME', freshState });
   }, []);
 
+  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard') => {
+    dispatch({ type: 'HIRE_UPGRADE', upgrade });
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -587,5 +630,6 @@ export function useGameState() {
     markAdventurerArrived,
     removeAdventurer,
     newGame,
+    hireUpgrade,
   };
 }

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { Adventurer } from '../game/types';
+import type { Adventurer, Upgrades } from '../game/types';
 import { AdventurerMesh } from './AdventurerMesh';
 
 interface TavernSceneProps {
@@ -9,6 +9,7 @@ interface TavernSceneProps {
   selectedAdventurerId: string | null;
   onSelectAdventurer: (id: string | null) => void;
   onAdventurerArrived: (id: string, pos: [number, number, number]) => void;
+  upgrades: Upgrades;
 }
 
 const TABLE_DATA: { pos: [number, number, number] }[] = [
@@ -548,11 +549,126 @@ function DayNightSky() {
   );
 }
 
+function StaffNPCs({ upgrades }: { upgrades: Upgrades }) {
+  const cookRef = useRef<THREE.Group>(null);
+  const bardRef = useRef<THREE.Group>(null);
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (cookRef.current && upgrades.cook > 0) {
+      cookRef.current.position.y = Math.sin(t * 1.4) * 0.04;
+    }
+    if (bardRef.current && upgrades.bard) {
+      bardRef.current.position.y = Math.sin(t * 1.8 + 1.2) * 0.05;
+      bardRef.current.rotation.y = Math.sin(t * 0.9) * 0.15;
+    }
+  });
+
+  return (
+    <>
+      {upgrades.cook > 0 && (
+        <group ref={cookRef} position={[1.5, 0, -5.8]}>
+          {/* Body */}
+          <mesh position={[0, 0.75, 0]} castShadow>
+            <boxGeometry args={[0.32, 0.5, 0.22]} />
+            <meshStandardMaterial color="#f0f0f0" roughness={0.8} />
+          </mesh>
+          {/* Head */}
+          <mesh position={[0, 1.15, 0]} castShadow>
+            <boxGeometry args={[0.24, 0.24, 0.24]} />
+            <meshStandardMaterial color="#e8c8a0" roughness={0.85} />
+          </mesh>
+          {/* Chef hat */}
+          <mesh position={[0, 1.33, 0]}>
+            <cylinderGeometry args={[0.12, 0.12, 0.2, 8]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 1.44, 0]}>
+            <cylinderGeometry args={[0.09, 0.12, 0.06, 8]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} />
+          </mesh>
+          {/* Apron accent */}
+          <mesh position={[0, 0.68, 0.12]}>
+            <boxGeometry args={[0.22, 0.38, 0.02]} />
+            <meshStandardMaterial color="#e8e8e8" roughness={0.8} />
+          </mesh>
+          {/* Legs */}
+          <mesh position={[-0.08, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.12, 0.5, 0.18]} />
+            <meshStandardMaterial color="#555" roughness={0.9} />
+          </mesh>
+          <mesh position={[0.08, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.12, 0.5, 0.18]} />
+            <meshStandardMaterial color="#555" roughness={0.9} />
+          </mesh>
+          {/* Cook+ badge color on body */}
+          {upgrades.cook === 2 && (
+            <mesh position={[0, 0.9, 0.12]}>
+              <boxGeometry args={[0.1, 0.08, 0.02]} />
+              <meshStandardMaterial color="#ffd700" emissive="#ffd700" emissiveIntensity={0.6} />
+            </mesh>
+          )}
+        </group>
+      )}
+
+      {upgrades.bard && (
+        <group ref={bardRef} position={[-5.2, 0, -5.2]}>
+          {/* Body */}
+          <mesh position={[0, 0.75, 0]} castShadow>
+            <boxGeometry args={[0.30, 0.5, 0.22]} />
+            <meshStandardMaterial color="#6b21a8" roughness={0.75} />
+          </mesh>
+          {/* Head */}
+          <mesh position={[0, 1.15, 0]} castShadow>
+            <boxGeometry args={[0.24, 0.24, 0.24]} />
+            <meshStandardMaterial color="#e8c8a0" roughness={0.85} />
+          </mesh>
+          {/* Bard hat brim */}
+          <mesh position={[0, 1.29, 0]}>
+            <cylinderGeometry args={[0.2, 0.2, 0.04, 8]} />
+            <meshStandardMaterial color="#4a1472" roughness={0.8} />
+          </mesh>
+          {/* Bard hat top */}
+          <mesh position={[0, 1.42, 0]}>
+            <cylinderGeometry args={[0.1, 0.14, 0.28, 8]} />
+            <meshStandardMaterial color="#4a1472" roughness={0.8} />
+          </mesh>
+          {/* Feather */}
+          <mesh position={[0.1, 1.52, 0]} rotation={[0, 0, -0.4]}>
+            <boxGeometry args={[0.04, 0.24, 0.02]} />
+            <meshStandardMaterial color="#f59e0b" roughness={0.6} />
+          </mesh>
+          {/* Lute body */}
+          <mesh position={[0.22, 0.7, 0.1]} rotation={[0.3, 0, 0.5]}>
+            <boxGeometry args={[0.08, 0.22, 0.06]} />
+            <meshStandardMaterial color="#8B4513" roughness={0.8} />
+          </mesh>
+          {/* Lute neck */}
+          <mesh position={[0.32, 0.88, 0.1]} rotation={[0.3, 0, 0.5]}>
+            <boxGeometry args={[0.04, 0.18, 0.04]} />
+            <meshStandardMaterial color="#6b3410" roughness={0.85} />
+          </mesh>
+          {/* Legs */}
+          <mesh position={[-0.08, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.12, 0.5, 0.18]} />
+            <meshStandardMaterial color="#3b0764" roughness={0.9} />
+          </mesh>
+          <mesh position={[0.08, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.12, 0.5, 0.18]} />
+            <meshStandardMaterial color="#3b0764" roughness={0.9} />
+          </mesh>
+        </group>
+      )}
+    </>
+  );
+}
+
 export function TavernScene({
   adventurers,
   selectedAdventurerId,
   onSelectAdventurer,
   onAdventurerArrived,
+  upgrades,
 }: TavernSceneProps) {
   return (
     <group onClick={(e) => { if (e.object === e.eventObject) onSelectAdventurer(null); }}>
@@ -568,6 +684,7 @@ export function TavernScene({
       <FloorRug />
       <AnimatedCandles />
       <AnimatedFireplace />
+      <StaffNPCs upgrades={upgrades} />
       {adventurers.filter(adv => adv.status !== 'on-quest').map((adv) => (
         <AdventurerMesh
           key={adv.id}

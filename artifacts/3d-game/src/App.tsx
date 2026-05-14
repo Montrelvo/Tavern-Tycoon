@@ -55,6 +55,7 @@ export default function App() {
     refreshQuests,
     markAdventurerArrived,
     newGame,
+    hireUpgrade,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -114,6 +115,7 @@ export default function App() {
             selectedAdventurerId={state.selectedAdventurerId}
             onSelectAdventurer={selectAdventurer}
             onAdventurerArrived={markAdventurerArrived}
+            upgrades={state.upgrades}
           />
         </Canvas>
       </Suspense>
@@ -127,6 +129,7 @@ export default function App() {
         gamePhase={state.gamePhase}
         selectedAdventurerId={state.selectedAdventurerId}
         showQuestBoard={state.showQuestBoard}
+        upgrades={state.upgrades}
         onRecruit={recruitAdventurer}
         onSelectAdventurer={selectAdventurer}
         onToggleQuestBoard={toggleQuestBoard}
@@ -134,6 +137,7 @@ export default function App() {
         onRefreshQuests={refreshQuests}
         onPlaySound={playSound}
         onNewGame={newGame}
+        onHireUpgrade={hireUpgrade}
       />
 
       {/* Title overlay */}
