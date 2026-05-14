@@ -3,7 +3,7 @@ import type { Adventurer, Quest } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
   WIN_GOLD, DISPATCH_COST, ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
-  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS,
+  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS, CLASS_STAT_COLORS,
 } from '../game/constants';
 import { getAdventurerBonus } from '../game/questUtils';
 
@@ -142,8 +142,33 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
       <div style={{ marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
         <span style={{ color: '#aaa', fontSize: 11 }}>{CLASS_LABELS[adv.class]}</span>
         <span style={{ color: '#f1c40f', fontSize: 11 }}>⚡ {adv.power}</span>
+        {adv.attack !== undefined && (
+          <span style={{ color: CLASS_STAT_COLORS.attack, fontSize: 11 }}>⚔ {adv.attack}</span>
+        )}
+        {adv.defense !== undefined && (
+          <span style={{ color: CLASS_STAT_COLORS.defense, fontSize: 11 }}>🛡 {adv.defense}</span>
+        )}
         <XpBar adv={adv} />
       </div>
+      {adv.hp !== undefined && adv.maxHp !== undefined && (
+        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ color: CLASS_STAT_COLORS.hp, fontSize: 9, flexShrink: 0 }}>HP</span>
+          <div style={{ background: '#1a0a0a', borderRadius: 2, height: 4, flex: 1, border: '1px solid #3d1515' }}>
+            <div style={{
+              background: adv.hp / adv.maxHp > 0.5
+                ? '#27ae60'
+                : adv.hp / adv.maxHp > 0.25
+                ? '#e67e22'
+                : '#e74c3c',
+              width: `${Math.max(0, (adv.hp / adv.maxHp) * 100)}%`,
+              height: '100%',
+              borderRadius: 2,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+          <span style={{ color: '#666', fontSize: 9, whiteSpace: 'nowrap' }}>{adv.hp}/{adv.maxHp}</span>
+        </div>
+      )}
       {adv.status === 'idle' && isSelected && (
         <button
           onClick={(e) => { e.stopPropagation(); onRecruit(adv.id); }}
@@ -234,6 +259,23 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
             color: elite ? '#f1c40f' : '#aaa',
           }}>
             {elite ? '★' : ''}Lv {adv.level}
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 10,
+        }}>
+          <div style={{ textAlign: 'center', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 6, padding: '5px 10px', minWidth: 60 }}>
+            <div style={{ color: CLASS_STAT_COLORS.hp, fontSize: 9, marginBottom: 2 }}>HP</div>
+            <div style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>{adv.hp}/{adv.maxHp}</div>
+          </div>
+          <div style={{ textAlign: 'center', background: 'rgba(230,126,34,0.1)', border: '1px solid rgba(230,126,34,0.3)', borderRadius: 6, padding: '5px 10px', minWidth: 60 }}>
+            <div style={{ color: CLASS_STAT_COLORS.attack, fontSize: 9, marginBottom: 2 }}>ATTACK</div>
+            <div style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>{adv.attack}</div>
+          </div>
+          <div style={{ textAlign: 'center', background: 'rgba(52,152,219,0.1)', border: '1px solid rgba(52,152,219,0.3)', borderRadius: 6, padding: '5px 10px', minWidth: 60 }}>
+            <div style={{ color: CLASS_STAT_COLORS.defense, fontSize: 9, marginBottom: 2 }}>DEFENSE</div>
+            <div style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>{adv.defense}</div>
           </div>
         </div>
 

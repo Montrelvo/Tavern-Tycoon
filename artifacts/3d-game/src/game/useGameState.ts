@@ -1,11 +1,13 @@
-import { useReducer, useEffect, useCallback } from 'react';
+import { useReducer, useEffect, useCallback, useRef } from 'react';
 import type { GameState, GameAction, Adventurer, Quest } from './types';
+import type { AdventurerClass } from './types';
 import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
   QUEST_POOL, WIN_GOLD, MAX_PARTY_SIZE, DISPATCH_COST,
   ENTRANCE_POS, WANDERING_POSITIONS, WAITING_POSITIONS,
   SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
   XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
+  WANDER_INTERVAL_MIN, WANDER_INTERVAL_MAX, HP_RECOVERY_INTERVAL,
 } from './constants';
 import { calculateEffectivePower } from './questUtils';
 
@@ -23,14 +25,44 @@ function pickName(): string {
   return name;
 }
 
+interface ClassStats {
+  baseHp: number;
+  hpPerLevel: number;
+  baseAttack: number;
+  attackPerLevel: number;
+  baseDefense: number;
+  defensePerLevel: number;
+}
+
+const CLASS_STAT_BASES: Record<AdventurerClass, ClassStats> = {
+  warrior:  { baseHp: 80, hpPerLevel: 15, baseAttack: 12, attackPerLevel: 2, baseDefense: 4,  defensePerLevel: 1 },
+  mage:     { baseHp: 45, hpPerLevel: 8,  baseAttack: 20, attackPerLevel: 4, baseDefense: 3,  defensePerLevel: 1 },
+  rogue:    { baseHp: 60, hpPerLevel: 10, baseAttack: 14, attackPerLevel: 3, baseDefense: 6,  defensePerLevel: 1 },
+  healer:   { baseHp: 75, hpPerLevel: 12, baseAttack: 8,  attackPerLevel: 1, baseDefense: 10, defensePerLevel: 2 },
+};
+
+function getClassStats(cls: AdventurerClass, level: number) {
+  const s = CLASS_STAT_BASES[cls];
+  return {
+    maxHp:   s.baseHp   + (level - 1) * s.hpPerLevel,
+    attack:  s.baseAttack  + (level - 1) * s.attackPerLevel,
+    defense: s.baseDefense + (level - 1) * s.defensePerLevel,
+  };
+}
+
+function pickRandomWaypoint(exclude?: [number, number, number][]): [number, number, number] {
+  const pool = exclude && exclude.length > 0
+    ? WANDERING_POSITIONS.filter(wp => !exclude.some(e => e[0] === wp[0] && e[2] === wp[2]))
+    : WANDERING_POSITIONS;
+  const src = pool.length > 0 ? pool : WANDERING_POSITIONS;
+  return src[Math.floor(Math.random() * src.length)];
+}
+
 function generateAdventurer(occupiedPositions: [number, number, number][]): Adventurer {
   const cls = ADVENTURER_CLASSES[Math.floor(Math.random() * ADVENTURER_CLASSES.length)];
-  const available = WANDERING_POSITIONS.filter(
-    wp => !occupiedPositions.some(op => op[0] === wp[0] && op[2] === wp[2])
-  );
-  const targetPos = available.length > 0
-    ? available[Math.floor(Math.random() * available.length)]
-    : WANDERING_POSITIONS[Math.floor(Math.random() * WANDERING_POSITIONS.length)];
+  const targetPos = pickRandomWaypoint(occupiedPositions);
+  const level = 1;
+  const { maxHp, attack, defense } = getClassStats(cls, level);
 
   return {
     id: `adv-${++adventurerCounter}`,
@@ -38,7 +70,11 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
     class: cls,
     power: Math.floor(Math.random() * 8) + 3,
     xp: 0,
-    level: 1,
+    level,
+    hp: maxHp,
+    maxHp,
+    attack,
+    defense,
     status: 'entering',
     position: [...ENTRANCE_POS] as [number, number, number],
     targetPosition: targetPos,
@@ -80,6 +116,20 @@ function buildFreshState(): GameState {
   };
 }
 
+function ensureAdventurerStats(adv: Adventurer): Adventurer {
+  if (adv.hp !== undefined && adv.maxHp !== undefined && adv.attack !== undefined && adv.defense !== undefined) {
+    return adv;
+  }
+  const { maxHp, attack, defense } = getClassStats(adv.class, adv.level);
+  return {
+    ...adv,
+    hp: adv.hp ?? maxHp,
+    maxHp: adv.maxHp ?? maxHp,
+    attack: adv.attack ?? attack,
+    defense: adv.defense ?? defense,
+  };
+}
+
 function syncCountersFromState(state: GameState) {
   for (const adv of state.adventurers) {
     const num = parseInt(adv.id.replace('adv-', ''), 10);
@@ -97,9 +147,9 @@ function loadFromStorage(): GameState {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return buildFreshState();
     const parsed = JSON.parse(raw) as GameState;
-    const persistedAdventurers = parsed.adventurers.filter(
-      a => a.status === 'recruited' || a.status === 'on-quest'
-    );
+    const persistedAdventurers = parsed.adventurers
+      .filter(a => a.status === 'recruited' || a.status === 'on-quest')
+      .map(ensureAdventurerStats);
     const restored: GameState = {
       ...parsed,
       adventurers: persistedAdventurers,
@@ -217,30 +267,52 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'QUEST_RESOLVED': {
       const quest = state.quests.find(q => q.id === action.questId);
       if (!quest) return state;
-      const newGold = action.success ? state.gold + quest.reward : state.gold;
+
+      const successMultiplier = 0.3;
+      const failMultiplier = 0.65;
+      const damagePerAdv = action.success
+        ? Math.max(1, Math.floor(quest.powerRequired * successMultiplier))
+        : Math.max(2, Math.floor(quest.powerRequired * failMultiplier));
 
       let newAdventurers = state.adventurers;
+      let newGold = action.success ? state.gold + quest.reward : state.gold;
+      const deathLog: string[] = [];
       let logMsg: string;
 
       if (action.success) {
         const xpGain = Math.ceil(quest.powerRequired * 1.2);
         newAdventurers = state.adventurers.map(adv => {
           if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
+          const newHp = Math.max(0, adv.hp - damagePerAdv);
           const newXp = adv.xp + xpGain;
           const newLevel = getLevelForXp(newXp);
           const leveledUp = newLevel > adv.level;
           const powerIncrease = leveledUp ? (newLevel - adv.level) * POWER_PER_LEVEL : 0;
-          return {
-            ...adv,
-            xp: newXp,
-            level: newLevel,
-            power: adv.power + powerIncrease,
-          };
+          if (leveledUp) {
+            const { maxHp: newMaxHp, attack: newAttack, defense: newDefense } = getClassStats(adv.class, newLevel);
+            return {
+              ...adv,
+              xp: newXp,
+              level: newLevel,
+              power: adv.power + powerIncrease,
+              hp: Math.min(newHp + 10, newMaxHp),
+              maxHp: newMaxHp,
+              attack: newAttack,
+              defense: newDefense,
+            };
+          }
+          return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: newHp };
         });
+
+        const died = newAdventurers.filter(a =>
+          quest.assignedAdventurerIds.includes(a.id) && a.hp <= 0
+        );
+        died.forEach(a => deathLog.push(`${a.name} succumbed to wounds after the quest!`));
+        newAdventurers = newAdventurers.filter(a => a.hp > 0);
 
         const levelUps = newAdventurers
           .filter(a => quest.assignedAdventurerIds.includes(a.id))
-          .filter((a, i) => {
+          .filter(a => {
             const before = state.adventurers.find(b => b.id === a.id);
             return before && a.level > before.level;
           });
@@ -250,14 +322,31 @@ function reducer(state: GameState, action: GameAction): GameState {
           logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}!`).join(' ')}`;
         }
       } else {
-        newAdventurers = state.adventurers.filter(a => !quest.assignedAdventurerIds.includes(a.id));
-        const lostCount = quest.assignedAdventurerIds.length;
-        logMsg = `Quest "${quest.name}" failed! ${lostCount} adventurer${lostCount !== 1 ? 's' : ''} lost.`;
+        newAdventurers = state.adventurers.map(adv => {
+          if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
+          const newHp = Math.max(0, adv.hp - damagePerAdv);
+          return { ...adv, hp: newHp };
+        });
+
+        const died = newAdventurers.filter(a =>
+          quest.assignedAdventurerIds.includes(a.id) && a.hp <= 0
+        );
+        died.forEach(a => deathLog.push(`${a.name} was lost on the quest!`));
+        newAdventurers = newAdventurers.filter(a => a.hp > 0);
+
+        const lostCount = died.length;
+        const survivorCount = quest.assignedAdventurerIds.length - lostCount;
+        logMsg = `Quest "${quest.name}" failed!`;
+        if (lostCount > 0) logMsg += ` ${lostCount} adventurer${lostCount !== 1 ? 's' : ''} lost.`;
+        if (survivorCount > 0) logMsg += ` ${survivorCount} survived, badly wounded.`;
       }
 
+      let finalLog = addLog(state.gameLog, logMsg);
+      deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
+
       const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
-      let newPhase = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
-      if (newPhase === 'playing' && !action.success && remainingRoster.length === 0) {
+      let newPhase: GameState['gamePhase'] = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
+      if (newPhase === 'playing' && remainingRoster.length === 0) {
         newPhase = 'lost';
       }
 
@@ -269,7 +358,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           q.id === action.questId ? { ...q, status: action.success ? 'completed' : 'failed' } : q
         ),
         gamePhase: newPhase,
-        gameLog: addLog(state.gameLog, logMsg),
+        gameLog: finalLog,
       };
     }
 
@@ -313,6 +402,31 @@ function reducer(state: GameState, action: GameAction): GameState {
       return action.freshState;
     }
 
+    case 'WANDER_TICK': {
+      if (state.gamePhase !== 'playing') return state;
+      const updateMap = new Map(action.updates.map(u => [u.id, u.target]));
+      return {
+        ...state,
+        adventurers: state.adventurers.map(a => {
+          const newTarget = updateMap.get(a.id);
+          if (!newTarget) return a;
+          return { ...a, targetPosition: newTarget };
+        }),
+      };
+    }
+
+    case 'RECOVER_HP': {
+      if (state.gamePhase !== 'playing') return state;
+      return {
+        ...state,
+        adventurers: state.adventurers.map(a => {
+          if (a.status !== 'idle' && a.status !== 'recruited') return a;
+          if (a.hp >= a.maxHp) return a;
+          return { ...a, hp: Math.min(a.maxHp, a.hp + 1) };
+        }),
+      };
+    }
+
     default:
       return state;
   }
@@ -320,6 +434,8 @@ function reducer(state: GameState, action: GameAction): GameState {
 
 export function useGameState() {
   const [state, dispatch] = useReducer(reducer, undefined, loadFromStorage);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     saveToStorage(state);
@@ -329,7 +445,7 @@ export function useGameState() {
   useEffect(() => {
     if (state.gamePhase !== 'playing') return;
     const spawnOne = () => {
-      const occupiedPositions = state.adventurers
+      const occupiedPositions = stateRef.current.adventurers
         .filter(a => a.status === 'idle' || a.status === 'entering')
         .map(a => a.targetPosition);
       const adv = generateAdventurer(occupiedPositions);
@@ -349,22 +465,22 @@ export function useGameState() {
     const delay = Math.max(0, soonest - Date.now());
     const timer = setTimeout(() => {
       const now = Date.now();
+      const currentState = stateRef.current;
       activeQuests.forEach(quest => {
         if (!quest.completesAt || quest.completesAt > now) return;
-        const assignedAdventurers = state.adventurers.filter(a => quest.assignedAdventurerIds.includes(a.id));
+        const assignedAdventurers = currentState.adventurers.filter(a => quest.assignedAdventurerIds.includes(a.id));
         const effectivePower = calculateEffectivePower(assignedAdventurers, quest.questType);
         const success = effectivePower >= quest.powerRequired;
         dispatch({ type: 'QUEST_RESOLVED', questId: quest.id, success });
-        if (success) {
-          const returnPositions: [number, number, number][] = quest.assignedAdventurerIds.map(
-            (_, i) => WAITING_POSITIONS[i % WAITING_POSITIONS.length]
-          );
-          dispatch({
-            type: 'ADVENTURERS_RETURNED',
-            adventurerIds: quest.assignedAdventurerIds,
-            targetPositions: returnPositions,
-          });
-        }
+        // Always return surviving adventurers (dead ones are already removed by QUEST_RESOLVED)
+        const returnPositions: [number, number, number][] = quest.assignedAdventurerIds.map(
+          (_, i) => WAITING_POSITIONS[i % WAITING_POSITIONS.length]
+        );
+        dispatch({
+          type: 'ADVENTURERS_RETURNED',
+          adventurerIds: quest.assignedAdventurerIds,
+          targetPositions: returnPositions,
+        });
       });
     }, delay + 100);
     return () => clearTimeout(timer);
@@ -379,18 +495,54 @@ export function useGameState() {
     const delay = Math.max(0, oldest + ADVENTURER_LEAVE_TIME - Date.now());
     const timer = setTimeout(() => {
       const now = Date.now();
-      state.adventurers
+      stateRef.current.adventurers
         .filter(a => a.status === 'idle' && now - a.enteredAt >= ADVENTURER_LEAVE_TIME)
         .forEach(a => dispatch({ type: 'REMOVE_ADVENTURER', id: a.id }));
     }, delay + 100);
     return () => clearTimeout(timer);
   }, [state.adventurers, state.gamePhase]);
 
+  // Wandering behavior — continuously reassign waypoints to idle/recruited adventurers
+  useEffect(() => {
+    if (state.gamePhase !== 'playing') return;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = () => {
+      const current = stateRef.current;
+      if (current.gamePhase !== 'playing') return;
+      const wanderers = current.adventurers.filter(
+        a => a.status === 'idle' || a.status === 'recruited'
+      );
+      if (wanderers.length > 0) {
+        const updates = wanderers.map(a => ({
+          id: a.id,
+          target: pickRandomWaypoint([a.targetPosition]),
+        }));
+        dispatch({ type: 'WANDER_TICK', updates });
+      }
+      const delay = WANDER_INTERVAL_MIN + Math.random() * (WANDER_INTERVAL_MAX - WANDER_INTERVAL_MIN);
+      timer = setTimeout(tick, delay);
+    };
+
+    const initialDelay = WANDER_INTERVAL_MIN + Math.random() * (WANDER_INTERVAL_MAX - WANDER_INTERVAL_MIN);
+    timer = setTimeout(tick, initialDelay);
+    return () => clearTimeout(timer);
+  }, [state.gamePhase]);
+
+  // HP recovery — 1 HP every 10 seconds for in-tavern adventurers
+  useEffect(() => {
+    if (state.gamePhase !== 'playing') return;
+    const timer = setInterval(() => {
+      dispatch({ type: 'RECOVER_HP' });
+    }, HP_RECOVERY_INTERVAL);
+    return () => clearInterval(timer);
+  }, [state.gamePhase]);
+
   const recruitAdventurer = useCallback((id: string) => {
-    const idx = state.adventurers.filter(a => a.status === 'recruited').length;
+    const idx = stateRef.current.adventurers.filter(a => a.status === 'recruited').length;
     const targetPos = WAITING_POSITIONS[idx % WAITING_POSITIONS.length];
     dispatch({ type: 'RECRUIT_ADVENTURER', id, targetPos });
-  }, [state.adventurers]);
+  }, []);
 
   const selectAdventurer = useCallback((id: string | null) => {
     dispatch({ type: 'SELECT_ADVENTURER', id });

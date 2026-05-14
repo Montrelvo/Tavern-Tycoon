@@ -9,6 +9,10 @@ export interface Adventurer {
   power: number;
   xp: number;
   level: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
   status: AdventurerStatus;
   position: [number, number, number];
   targetPosition: [number, number, number];
@@ -49,4 +53,6 @@ export type GameAction =
   | { type: 'REMOVE_ADVENTURER'; id: string }
   | { type: 'TOGGLE_QUEST_BOARD' }
   | { type: 'REFRESH_QUESTS' }
-  | { type: 'NEW_GAME'; freshState: GameState };
+  | { type: 'NEW_GAME'; freshState: GameState }
+  | { type: 'WANDER_TICK'; updates: { id: string; target: [number, number, number] }[] }
+  | { type: 'RECOVER_HP' };
