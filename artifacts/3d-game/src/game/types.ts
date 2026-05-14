@@ -36,6 +36,14 @@ export interface Upgrades {
   cook: 0 | 1 | 2;
   bard: boolean;
   rosterSlots: 1 | 2 | 3;
+  rooms: 0 | 1 | 2;
+  basement: boolean;
+}
+
+export interface Materials {
+  herbs: number;
+  ore: number;
+  relics: number;
 }
 
 export interface GameState {
@@ -47,6 +55,7 @@ export interface GameState {
   selectedAdventurerId: string | null;
   showQuestBoard: boolean;
   upgrades: Upgrades;
+  materials: Materials;
 }
 
 export type GameAction =
@@ -63,4 +72,6 @@ export type GameAction =
   | { type: 'NEW_GAME'; freshState: GameState }
   | { type: 'WANDER_TICK'; updates: { id: string; target: [number, number, number] }[] }
   | { type: 'RECOVER_HP' }
-  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' };
+  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' }
+  | { type: 'SELL_MATERIALS' }
+  | { type: 'ROOM_INCOME' };

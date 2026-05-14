@@ -119,6 +119,7 @@ export default function App() {
     markAdventurerArrived,
     newGame,
     hireUpgrade,
+    sellMaterials,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -211,8 +212,10 @@ export default function App() {
         <ManagementScene
           gold={state.gold}
           upgrades={state.upgrades}
+          materials={state.materials}
           rosterCount={rosterCount}
           onHireUpgrade={hireUpgrade}
+          onSellMaterials={sellMaterials}
         />
       )}
     </div>
