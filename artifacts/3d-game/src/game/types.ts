@@ -35,6 +35,7 @@ export interface Quest {
 export interface Upgrades {
   cook: 0 | 1 | 2;
   bard: boolean;
+  rosterSlots: 1 | 2 | 3;
 }
 
 export interface GameState {
@@ -62,4 +63,4 @@ export type GameAction =
   | { type: 'NEW_GAME'; freshState: GameState }
   | { type: 'WANDER_TICK'; updates: { id: string; target: [number, number, number] }[] }
   | { type: 'RECOVER_HP' }
-  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' };
+  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' };

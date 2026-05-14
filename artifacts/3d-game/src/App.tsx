@@ -1,8 +1,9 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { Suspense, Component, type ReactNode, useEffect, useRef } from 'react';
+import { Suspense, Component, type ReactNode, useEffect, useRef, useState } from 'react';
 import { TavernScene } from './components/TavernScene';
 import { HUD } from './components/HUD';
+import { ManagementScene } from './components/ManagementScene';
 import { useGameState } from './game/useGameState';
 import { useTavernAmbience } from './game/useTavernAmbience';
 import './index.css';
@@ -45,7 +46,69 @@ function LoadingScreen() {
   );
 }
 
+type ActiveScene = 'tavern' | 'management';
+
+function SceneNav({ activeScene, onSetScene }: {
+  activeScene: ActiveScene;
+  onSetScene: (s: ActiveScene) => void;
+}) {
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 40,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      background: 'rgba(8,4,1,0.97)',
+      borderBottom: '1px solid #3d2410',
+      zIndex: 300,
+      fontFamily: 'serif',
+    }}>
+      <span style={{
+        position: 'absolute', left: 14,
+        color: '#4a3a28', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+        pointerEvents: 'none',
+      }}>
+        The Wanderer's Rest
+      </span>
+      {(['tavern', 'management'] as ActiveScene[]).map(scene => {
+        const active = activeScene === scene;
+        const label = scene === 'tavern' ? '⚔ Tavern' : '🏗 Manage';
+        return (
+          <button
+            key={scene}
+            onClick={() => onSetScene(scene)}
+            style={{
+              background: active
+                ? 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)'
+                : 'rgba(30,15,5,0.8)',
+              border: active ? '1px solid #a0631e' : '1px solid #3d2410',
+              borderRadius: 6,
+              color: active ? '#e8d5a0' : '#7a6a5a',
+              fontFamily: 'serif',
+              fontWeight: active ? 'bold' : 'normal',
+              fontSize: 13,
+              padding: '4px 18px',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              letterSpacing: 0.3,
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
+  const [activeScene, setActiveScene] = useState<ActiveScene>('tavern');
+
   const {
     state,
     recruitAdventurer,
@@ -68,7 +131,6 @@ export default function App() {
     }
   };
 
-  // Trigger sound on quest resolution by watching the log
   const prevLogRef = useRef<string[]>([]);
   useEffect(() => {
     const prev = prevLogRef.current;
@@ -81,73 +143,78 @@ export default function App() {
     prevLogRef.current = curr;
   }, [state.gameLog, playSound]);
 
+  const rosterCount = state.adventurers.filter(
+    a => a.status === 'recruited' || a.status === 'on-quest'
+  ).length;
+
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#0d0700', overflow: 'hidden' }}
+    <div
+      style={{ width: '100vw', height: '100vh', background: '#0d0700', overflow: 'hidden' }}
       onClick={handleFirstInteraction}
     >
-      <WebGLErrorBoundary>
-      <Suspense fallback={<LoadingScreen />}>
-        <Canvas
-          shadows
-          camera={{
-            position: [0, 14, 12],
-            fov: 45,
-            near: 0.1,
-            far: 100,
-          }}
-          style={{ width: '100%', height: '100%' }}
-          gl={{ antialias: true }}
-          onClick={() => {
-            if (state.selectedAdventurerId) selectAdventurer(null);
-          }}
-        >
-          <OrbitControls
-            target={[0, 0, 0]}
-            maxPolarAngle={Math.PI / 2.4}
-            minPolarAngle={Math.PI / 6}
-            minDistance={8}
-            maxDistance={22}
-            enablePan={false}
-            makeDefault
-          />
-          <TavernScene
-            adventurers={state.adventurers}
-            selectedAdventurerId={state.selectedAdventurerId}
-            onSelectAdventurer={selectAdventurer}
-            onAdventurerArrived={markAdventurerArrived}
-            upgrades={state.upgrades}
-          />
-        </Canvas>
-      </Suspense>
-      </WebGLErrorBoundary>
+      <SceneNav activeScene={activeScene} onSetScene={setActiveScene} />
 
-      <HUD
-        gold={state.gold}
-        adventurers={state.adventurers}
-        quests={state.quests}
-        gameLog={state.gameLog}
-        gamePhase={state.gamePhase}
-        selectedAdventurerId={state.selectedAdventurerId}
-        showQuestBoard={state.showQuestBoard}
-        upgrades={state.upgrades}
-        onRecruit={recruitAdventurer}
-        onSelectAdventurer={selectAdventurer}
-        onToggleQuestBoard={toggleQuestBoard}
-        onDispatchQuest={dispatchQuest}
-        onRefreshQuests={refreshQuests}
-        onPlaySound={playSound}
-        onNewGame={newGame}
-        onHireUpgrade={hireUpgrade}
-      />
+      {/* Tavern 3D scene — always mounted to preserve WebGL state, hidden when management is active */}
+      <div style={{ display: activeScene === 'tavern' ? 'block' : 'none' }}>
+        <WebGLErrorBoundary>
+          <Suspense fallback={<LoadingScreen />}>
+            <Canvas
+              shadows
+              camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
+              style={{ width: '100vw', height: '100vh' }}
+              gl={{ antialias: true }}
+              onClick={() => {
+                if (state.selectedAdventurerId) selectAdventurer(null);
+              }}
+            >
+              <OrbitControls
+                target={[0, 0, 0]}
+                maxPolarAngle={Math.PI / 2.4}
+                minPolarAngle={Math.PI / 6}
+                minDistance={8}
+                maxDistance={22}
+                enablePan={false}
+                makeDefault
+              />
+              <TavernScene
+                adventurers={state.adventurers}
+                selectedAdventurerId={state.selectedAdventurerId}
+                onSelectAdventurer={selectAdventurer}
+                onAdventurerArrived={markAdventurerArrived}
+                upgrades={state.upgrades}
+              />
+            </Canvas>
+          </Suspense>
+        </WebGLErrorBoundary>
 
-      {/* Title overlay */}
-      <div style={{
-        position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-        fontFamily: 'serif', pointerEvents: 'none', zIndex: 50,
-        textAlign: 'center', padding: '6px 20px',
-      }}>
-        <div style={{ fontSize: 13, color: '#7a6a5a', letterSpacing: 2 }}>THE WANDERER'S REST</div>
+        <HUD
+          gold={state.gold}
+          adventurers={state.adventurers}
+          quests={state.quests}
+          gameLog={state.gameLog}
+          gamePhase={state.gamePhase}
+          selectedAdventurerId={state.selectedAdventurerId}
+          showQuestBoard={state.showQuestBoard}
+          upgrades={state.upgrades}
+          onRecruit={recruitAdventurer}
+          onSelectAdventurer={selectAdventurer}
+          onToggleQuestBoard={toggleQuestBoard}
+          onDispatchQuest={dispatchQuest}
+          onRefreshQuests={refreshQuests}
+          onPlaySound={playSound}
+          onNewGame={newGame}
+        />
       </div>
+
+      {/* Management scene */}
+      {activeScene === 'management' && (
+        <ManagementScene
+          gold={state.gold}
+          upgrades={state.upgrades}
+          rosterCount={rosterCount}
+          onHireUpgrade={hireUpgrade}
+        />
+      )}
     </div>
   );
 }
