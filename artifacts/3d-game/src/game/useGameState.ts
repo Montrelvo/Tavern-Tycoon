@@ -104,7 +104,12 @@ function getLevelForXp(xp: number): number {
 }
 
 
-const DEFAULT_UPGRADES = { cook: 0 as const, bard: false };
+const DEFAULT_UPGRADES = { cook: 0 as const, bard: false, rosterSlots: 1 as const };
+
+function getRosterMax(upgrades: typeof DEFAULT_UPGRADES & { rosterSlots: 1 | 2 | 3 }): number {
+  const caps = [5, 8, 12];
+  return caps[(upgrades.rosterSlots ?? 1) - 1];
+}
 
 function buildFreshState(): GameState {
   return {
@@ -153,12 +158,17 @@ function loadFromStorage(): GameState {
     const persistedAdventurers = parsed.adventurers
       .filter(a => a.status === 'recruited' || a.status === 'on-quest')
       .map(ensureAdventurerStats);
+    const mergedUpgrades = {
+      ...DEFAULT_UPGRADES,
+      ...(parsed.upgrades ?? {}),
+      rosterSlots: (parsed.upgrades?.rosterSlots ?? 1) as 1 | 2 | 3,
+    };
     const restored: GameState = {
       ...parsed,
       adventurers: persistedAdventurers,
       selectedAdventurerId: null,
       showQuestBoard: false,
-      upgrades: parsed.upgrades ?? { ...DEFAULT_UPGRADES },
+      upgrades: mergedUpgrades,
     };
     syncCountersFromState(restored);
     return restored;
@@ -219,8 +229,9 @@ function reducer(state: GameState, action: GameAction): GameState {
       const adv = state.adventurers.find(a => a.id === action.id);
       if (!adv) return state;
       const recruited = state.adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
-      if (recruited.length >= MAX_PARTY_SIZE) {
-        return { ...state, gameLog: addLog(state.gameLog, 'Your roster is full! (max 8 adventurers)') };
+      const rosterMax = getRosterMax(state.upgrades);
+      if (recruited.length >= rosterMax) {
+        return { ...state, gameLog: addLog(state.gameLog, `Your roster is full! (max ${rosterMax} adventurers)`) };
       }
       return {
         ...state,
@@ -463,6 +474,24 @@ function reducer(state: GameState, action: GameAction): GameState {
           gameLog: addLog(state.gameLog, 'A bard joins your tavern, filling it with music!'),
         };
       }
+      if (upgrade === 'roster_2') {
+        if ((state.upgrades.rosterSlots ?? 1) >= 2 || state.gold < 100) return state;
+        return {
+          ...state,
+          gold: state.gold - 100,
+          upgrades: { ...state.upgrades, rosterSlots: 2 },
+          gameLog: addLog(state.gameLog, 'Roster expanded! You can now recruit up to 8 adventurers.'),
+        };
+      }
+      if (upgrade === 'roster_3') {
+        if ((state.upgrades.rosterSlots ?? 1) >= 3 || state.gold < 200) return state;
+        return {
+          ...state,
+          gold: state.gold - 200,
+          upgrades: { ...state.upgrades, rosterSlots: 3 },
+          gameLog: addLog(state.gameLog, 'Full company assembled! You can now recruit up to 12 adventurers.'),
+        };
+      }
       return state;
     }
 
@@ -616,7 +645,7 @@ export function useGameState() {
     dispatch({ type: 'NEW_GAME', freshState });
   }, []);
 
-  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard') => {
+  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3') => {
     dispatch({ type: 'HIRE_UPGRADE', upgrade });
   }, []);
 
