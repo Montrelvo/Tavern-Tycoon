@@ -706,10 +706,11 @@ function ActiveQuestItem({ quest }: { quest: Quest }) {
   );
 }
 
-function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
+function QuestCard({ quest, availableAdventurers, gold, dispatchCost, onDispatch }: {
   quest: Quest;
   availableAdventurers: Adventurer[];
   gold: number;
+  dispatchCost: number;
   onDispatch: (qid: string, aids: string[]) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
@@ -723,7 +724,7 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
   }
 
   const selectedPower = selectedAdventurers.reduce((sum, a) => sum + getEffectivePower(a), 0);
-  const canDispatch = quest.status === 'available' && selectedAdventurers.length > 0 && gold >= DISPATCH_COST;
+  const canDispatch = quest.status === 'available' && selectedAdventurers.length > 0 && gold >= dispatchCost;
   const willSucceed = selectedPower >= quest.powerRequired;
 
   const now = Date.now();
@@ -859,19 +860,20 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
             ? 'No idle recruits available'
             : selectedAdventurers.length === 0
             ? 'Select adventurers to send'
-            : gold < DISPATCH_COST
-            ? `Need ${DISPATCH_COST}g to dispatch`
-            : `Send ${selectedAdventurers.length} adventurer${selectedAdventurers.length !== 1 ? 's' : ''} (−${DISPATCH_COST}g)`}
+            : gold < dispatchCost
+            ? `Need ${dispatchCost}g to dispatch`
+            : `Send ${selectedAdventurers.length} adventurer${selectedAdventurers.length !== 1 ? 's' : ''} (−${dispatchCost}g)`}
         </button>
       )}
     </div>
   );
 }
 
-function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onClose }: {
+function QuestBoardModal({ quests, adventurers, gold, dispatchCost, onDispatch, onRefresh, onClose }: {
   quests: Quest[];
   adventurers: Adventurer[];
   gold: number;
+  dispatchCost: number;
   onDispatch: (qid: string, aids: string[]) => void;
   onRefresh: () => void;
   onClose: () => void;
@@ -906,7 +908,8 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>
         <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
-          Dispatching costs <span style={{ color: '#ffd700' }}>{DISPATCH_COST}g</span>.
+          Dispatching costs <span style={{ color: '#ffd700' }}>{dispatchCost}g</span>
+          {dispatchCost < DISPATCH_COST && <span style={{ color: '#2ecc71' }}> (Guild Hall discount!)</span>}.
           Class abilities grant bonus power on matching quest types — shown in <span style={{ color: '#2ecc71' }}>green</span>.
         </p>
         {quests.map(quest => (
@@ -915,6 +918,7 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
             quest={quest}
             availableAdventurers={idleRecruits}
             gold={gold}
+            dispatchCost={dispatchCost}
             onDispatch={onDispatch}
           />
         ))}
@@ -1271,6 +1275,7 @@ export function HUD({
             quests={quests}
             adventurers={adventurers}
             gold={gold}
+            dispatchCost={upgrades.guildHall ? Math.floor(DISPATCH_COST / 2) : DISPATCH_COST}
             onDispatch={onDispatchQuest}
             onRefresh={onRefreshQuests}
             onClose={onToggleQuestBoard}
