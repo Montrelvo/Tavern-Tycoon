@@ -1,4 +1,4 @@
-import type { AdventurerClass, QuestType } from './types';
+import type { AdventurerClass, PrestigeClass, QuestType } from './types';
 
 export const ADVENTURER_NAMES = [
   'Aldric', 'Brynn', 'Caelum', 'Dara', 'Eryn',
@@ -100,3 +100,35 @@ export const WAITING_POSITIONS: [number, number, number][] = [
   [-5, 0.5, -3], [-5, 0.5, -1], [-5, 0.5, 1], [-5, 0.5, 3],
   [-6, 0.5, -2], [-6, 0.5, 0], [-6, 0.5, 2], [-4, 0.5, 0],
 ];
+
+export const TAVERN_PRESTIGE_THRESHOLDS = [10, 25, 50];
+export const TAVERN_PRESTIGE_NAMES = ['Renowned', 'Celebrated', 'Legendary'];
+export const PRESTIGE_ADVENTURER_COST = 50;
+
+export const PRESTIGE_CLASS_LABELS: Record<PrestigeClass, string> = {
+  knight: 'Knight',
+  archmage: 'Archmage',
+  shadowblade: 'Shadowblade',
+  warden: 'Warden',
+};
+
+export const PRESTIGE_CLASS_COLORS: Record<PrestigeClass, string> = {
+  knight: '#f1c40f',
+  archmage: '#8e44ad',
+  shadowblade: '#1abc9c',
+  warden: '#bdc3c7',
+};
+
+export const PRESTIGE_CLASS_PASSIVE_LABELS: Record<PrestigeClass, string> = {
+  knight: '+5 power on Beast & Combat quests',
+  archmage: '+5 power on Arcane & Stealth quests',
+  shadowblade: '+5 power on Stealth & Beast quests',
+  warden: '+3 power on all quest types',
+};
+
+export const PRESTIGE_CLASS_FOR: Record<AdventurerClass, PrestigeClass> = {
+  warrior: 'knight',
+  mage: 'archmage',
+  rogue: 'shadowblade',
+  healer: 'warden',
+};

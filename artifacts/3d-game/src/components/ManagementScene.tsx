@@ -7,7 +7,8 @@ interface ManagementSceneProps {
   upgrades: Upgrades;
   materials: Materials;
   rosterCount: number;
-  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement') => void;
+  tavernPrestige: 0 | 1 | 2 | 3;
+  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
   onSellMaterials: () => void;
 }
 
@@ -83,6 +84,42 @@ function PurchasedBadge({ label }: { label: string }) {
   );
 }
 
+function LockedBadge({ label }: { label: string }) {
+  return (
+    <span style={{
+      color: '#4a3a28',
+      fontSize: 13,
+      background: 'rgba(0,0,0,0.2)',
+      border: '1px solid #2a1a08',
+      borderRadius: 5,
+      padding: '4px 10px',
+    }}>
+      🔒 {label}
+    </span>
+  );
+}
+
+function PrestigeTierBadge({ tier, required }: { tier: number; required: number }) {
+  const tierNames = ['Renowned', 'Celebrated', 'Legendary'];
+  const name = tierNames[required - 1];
+  const colors = ['#c8960c', '#8e44ad', '#f1c40f'];
+  const color = colors[required - 1];
+  const unlocked = tier >= required;
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 'bold',
+      padding: '2px 7px',
+      borderRadius: 4,
+      background: unlocked ? `${color}22` : 'rgba(0,0,0,0.3)',
+      border: `1px solid ${unlocked ? color + '66' : '#2a1a08'}`,
+      color: unlocked ? color : '#3a2a18',
+    }}>
+      ★ Requires: {name}
+    </span>
+  );
+}
+
 function UpgradeRow({ icon, title, description, children }: {
   icon: string; title: string; description: string; children: React.ReactNode;
 }) {
@@ -122,14 +159,18 @@ function RoomSlot({ n, active }: { n: number; active: boolean }) {
   );
 }
 
-export function ManagementScene({ gold, upgrades, materials, rosterCount, onHireUpgrade, onSellMaterials }: ManagementSceneProps) {
+export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials }: ManagementSceneProps) {
   const rosterMax = ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
   const roomIncomePm = rooms * 3 * 2;
+  const sellRates = upgrades.enchanter ? { herbs: 6, ore: 12, relics: 24 } : { herbs: 3, ore: 6, relics: 12 };
   const totalMaterialValue =
-    materials.herbs * 3 + materials.ore * 6 + materials.relics * 12;
+    materials.herbs * sellRates.herbs + materials.ore * sellRates.ore + materials.relics * sellRates.relics;
   const hasMaterials = materials.herbs > 0 || materials.ore > 0 || materials.relics > 0;
+  const prestige1Unlocked = tavernPrestige >= 1;
+  const prestige2Unlocked = tavernPrestige >= 2;
+  const prestige3Unlocked = tavernPrestige >= 3;
 
   return (
     <div style={{
@@ -335,7 +376,10 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, onHire
               <span style={{ fontSize: 20 }}>⛏</span>
               <div style={{ flex: 1 }}>
                 <div style={sectionTitle}>Basement Storage</div>
-                <div style={sectionSubtitle}>Materials from quest returns accumulate here</div>
+                <div style={sectionSubtitle}>
+                  Materials from quest returns accumulate here
+                  {upgrades.enchanter && <span style={{ color: '#8e44ad', marginLeft: 6 }}>✦ Enchanted (2× rates)</span>}
+                </div>
               </div>
               {hasMaterials && (
                 <span style={{ color: '#ffd700', fontWeight: 'bold', fontSize: 13 }}>
@@ -347,9 +391,9 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, onHire
             {/* Material inventory */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
               {[
-                { key: 'herbs' as const, label: 'Herbs', icon: '🌿', color: '#c8960c', rate: 3 },
-                { key: 'ore' as const, label: 'Ore', icon: '⚙', color: '#aaa', rate: 6 },
-                { key: 'relics' as const, label: 'Relics', icon: '💎', color: '#9b59b6', rate: 12 },
+                { key: 'herbs' as const, label: 'Herbs', icon: '🌿', color: '#c8960c', rate: sellRates.herbs },
+                { key: 'ore' as const, label: 'Ore', icon: '⚙', color: '#aaa', rate: sellRates.ore },
+                { key: 'relics' as const, label: 'Relics', icon: '💎', color: '#9b59b6', rate: sellRates.relics },
               ].map(({ key, label, icon, color, rate }) => (
                 <div key={key} style={{
                   flex: 1,
@@ -392,6 +436,89 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, onHire
             )}
           </div>
         )}
+
+        {/* Prestige Upgrades */}
+        <div style={{ color: '#4a3a28', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', margin: '20px 0 10px' }}>
+          Prestige Upgrades
+        </div>
+
+        {/* Training Grounds — Prestige I */}
+        <div style={prestige1Unlocked ? cardStyle : lockedCardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 20 }}>⚔</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <div style={sectionTitle}>Training Grounds</div>
+                <PrestigeTierBadge tier={tavernPrestige} required={1} />
+              </div>
+              <div style={sectionSubtitle}>Dedicated facilities to accelerate adventurer growth</div>
+            </div>
+          </div>
+          <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
+            Construct a training yard that increases quest XP gains by{' '}
+            <strong style={{ color: '#c8960c' }}>+50%</strong> for all adventurers. Stacks with the Bard bonus.
+          </div>
+          {upgrades.trainingGrounds ? (
+            <PurchasedBadge label="Training Grounds active" />
+          ) : prestige1Unlocked ? (
+            <BuyButton label="Build Training Grounds" cost={120} canAfford={gold >= 120} onClick={() => onHireUpgrade('training_grounds')} />
+          ) : (
+            <LockedBadge label="Reach Renowned prestige to unlock" />
+          )}
+        </div>
+
+        {/* Enchanter's Study — Prestige II */}
+        <div style={prestige2Unlocked ? cardStyle : lockedCardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 20 }}>🔮</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <div style={sectionTitle}>Enchanter's Study</div>
+                <PrestigeTierBadge tier={tavernPrestige} required={2} />
+              </div>
+              <div style={sectionSubtitle}>A resident enchanter appraises your rare finds</div>
+            </div>
+          </div>
+          <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
+            An enchanter doubles the sell value of all materials:{' '}
+            <span style={{ color: '#c8960c' }}>Herbs → 6g</span>,{' '}
+            <span style={{ color: '#aaa' }}>Ore → 12g</span>,{' '}
+            <span style={{ color: '#9b59b6' }}>Relics → 24g</span>.
+          </div>
+          {upgrades.enchanter ? (
+            <PurchasedBadge label="Enchanter in residence" />
+          ) : prestige2Unlocked ? (
+            <BuyButton label="Hire Enchanter" cost={200} canAfford={gold >= 200} onClick={() => onHireUpgrade('enchanter')} />
+          ) : (
+            <LockedBadge label="Reach Celebrated prestige to unlock" />
+          )}
+        </div>
+
+        {/* Guild Hall — Prestige III */}
+        <div style={prestige3Unlocked ? cardStyle : lockedCardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 20 }}>🏛</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <div style={sectionTitle}>Guild Hall</div>
+                <PrestigeTierBadge tier={tavernPrestige} required={3} />
+              </div>
+              <div style={sectionSubtitle}>An official Guild charter lowers operational costs</div>
+            </div>
+          </div>
+          <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
+            Establish a Guild Hall that halves the dispatch cost —{' '}
+            from <strong style={{ color: '#e74c3c' }}>10g</strong> down to{' '}
+            <strong style={{ color: '#2ecc71' }}>5g</strong> per quest.
+          </div>
+          {upgrades.guildHall ? (
+            <PurchasedBadge label="Guild Hall established" />
+          ) : prestige3Unlocked ? (
+            <BuyButton label="Build Guild Hall" cost={350} canAfford={gold >= 350} onClick={() => onHireUpgrade('guild_hall')} />
+          ) : (
+            <LockedBadge label="Reach Legendary prestige to unlock" />
+          )}
+        </div>
 
         {/* Roster Size */}
         <div style={{ color: '#4a3a28', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', margin: '20px 0 10px' }}>

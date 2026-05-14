@@ -1,4 +1,5 @@
 export type AdventurerClass = 'warrior' | 'mage' | 'rogue' | 'healer';
+export type PrestigeClass = 'knight' | 'archmage' | 'shadowblade' | 'warden';
 export type AdventurerStatus = 'entering' | 'idle' | 'recruited' | 'on-quest';
 export type QuestType = 'beast' | 'arcane' | 'stealth' | 'combat';
 
@@ -6,6 +7,7 @@ export interface Adventurer {
   id: string;
   name: string;
   class: AdventurerClass;
+  prestigeClass: PrestigeClass | null;
   power: number;
   xp: number;
   level: number;
@@ -39,6 +41,9 @@ export interface Upgrades {
   rosterSlots: 1 | 2 | 3;
   rooms: 0 | 1 | 2;
   basement: boolean;
+  trainingGrounds: boolean;
+  enchanter: boolean;
+  guildHall: boolean;
 }
 
 export interface Materials {
@@ -52,11 +57,13 @@ export interface GameState {
   adventurers: Adventurer[];
   quests: Quest[];
   gameLog: string[];
-  gamePhase: 'playing' | 'won' | 'lost';
+  gamePhase: 'playing' | 'lost';
   selectedAdventurerId: string | null;
   showQuestBoard: boolean;
   upgrades: Upgrades;
   materials: Materials;
+  questsCompleted: number;
+  tavernPrestige: 0 | 1 | 2 | 3;
 }
 
 export type GameAction =
@@ -73,7 +80,8 @@ export type GameAction =
   | { type: 'NEW_GAME'; freshState: GameState }
   | { type: 'WANDER_TICK'; updates: { id: string; target: [number, number, number] }[] }
   | { type: 'RECOVER_HP' }
-  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' }
+  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall' }
   | { type: 'SELL_MATERIALS' }
   | { type: 'ROOM_INCOME' }
-  | { type: 'SPEND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' };
+  | { type: 'SPEND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' }
+  | { type: 'PRESTIGE_ADVENTURER'; id: string };
