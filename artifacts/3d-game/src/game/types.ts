@@ -44,5 +44,4 @@ export type GameAction =
   | { type: 'ADVENTURERS_RETURNED'; adventurerIds: string[]; targetPositions: [number, number, number][] }
   | { type: 'REMOVE_ADVENTURER'; id: string }
   | { type: 'TOGGLE_QUEST_BOARD' }
-  | { type: 'REFRESH_QUESTS' }
-  | { type: 'TICK' };
+  | { type: 'REFRESH_QUESTS' };

@@ -15,6 +15,7 @@ interface HUDProps {
   onToggleQuestBoard: () => void;
   onDispatchQuest: (questId: string, adventurerIds: string[]) => void;
   onRefreshQuests: () => void;
+  onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -99,6 +100,74 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
           Recruit (Free)
         </button>
       )}
+    </div>
+  );
+}
+
+function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
+  adv: Adventurer;
+  onRecruit: (id: string) => void;
+  onClose: () => void;
+  onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
+}) {
+  const color = CLASS_COLORS[adv.class];
+  const isRecruited = adv.status === 'recruited';
+  return (
+    <div style={{
+      position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
+      pointerEvents: 'auto', zIndex: 150,
+    }}>
+      <div style={{
+        background: 'rgba(15,8,2,0.96)',
+        border: `2px solid ${color}`,
+        borderRadius: 12,
+        padding: '16px 20px',
+        minWidth: 240,
+        boxShadow: `0 0 24px ${color}44, 0 4px 16px rgba(0,0,0,0.8)`,
+        fontFamily: 'serif',
+        textAlign: 'center',
+        position: 'relative',
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 8, right: 10,
+            background: 'none', border: 'none', color: '#666', fontSize: 16, cursor: 'pointer',
+          }}
+        >✕</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: color }} />
+          <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 17 }}>{adv.name}</span>
+        </div>
+        <div style={{ color: '#b0a090', fontSize: 13, marginBottom: 4 }}>
+          {CLASS_LABELS[adv.class]}
+        </div>
+        <div style={{ color: '#f1c40f', fontSize: 14, marginBottom: 12 }}>
+          ⚡ Power: {adv.power}
+        </div>
+        {!isRecruited ? (
+          <button
+            onClick={() => { onRecruit(adv.id); onPlaySound('recruit'); onClose(); }}
+            style={{
+              background: `linear-gradient(180deg, ${color}cc 0%, ${color}88 100%)`,
+              border: `1px solid ${color}`,
+              borderRadius: 6,
+              color: '#fff',
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              fontSize: 14,
+              padding: '7px 20px',
+              cursor: 'pointer',
+              width: '100%',
+              textShadow: '0 1px 3px rgba(0,0,0,0.6)',
+            }}
+          >
+            Recruit
+          </button>
+        ) : (
+          <div style={{ color: '#2ecc71', fontSize: 13, fontStyle: 'italic' }}>Already in your party</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -332,11 +401,15 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
 export function HUD({
   gold, adventurers, quests, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard,
-  onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests,
+  onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
   const activeQuests = quests.filter(q => q.status === 'active');
+
+  const selectedAdv = selectedAdventurerId
+    ? adventurers.find(a => a.id === selectedAdventurerId) ?? null
+    : null;
 
   if (gamePhase === 'won') {
     return (
@@ -476,8 +549,18 @@ export function HUD({
         </div>
       </div>
 
+      {/* Recruit popup — shown when a visitor (idle/entering/recruited) is selected */}
+      {selectedAdv && !showQuestBoard && (
+        <RecruitPopup
+          adv={selectedAdv}
+          onRecruit={onRecruit}
+          onClose={() => onSelectAdventurer(null)}
+          onPlaySound={onPlaySound}
+        />
+      )}
+
       {/* Help hint */}
-      {wanderers.length > 0 && roster.length === 0 && (
+      {wanderers.length > 0 && roster.length === 0 && !selectedAdv && (
         <div style={{
           position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
           pointerEvents: 'none', textAlign: 'center',
