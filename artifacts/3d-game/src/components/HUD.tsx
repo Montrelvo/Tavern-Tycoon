@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import type { Adventurer, Quest } from '../game/types';
-import { CLASS_COLORS, CLASS_LABELS, WIN_GOLD, DISPATCH_COST } from '../game/constants';
+import {
+  CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
+  WIN_GOLD, DISPATCH_COST, ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
+  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS,
+} from '../game/constants';
+import { getAdventurerBonus } from '../game/questUtils';
 
 interface HUDProps {
   gold: number;
@@ -25,6 +30,51 @@ const panelStyle: React.CSSProperties = {
   padding: 12,
   backdropFilter: 'blur(4px)',
 };
+
+function isElite(adv: Adventurer) {
+  return adv.level >= ELITE_LEVEL;
+}
+
+function XpBar({ adv }: { adv: Adventurer }) {
+  if (adv.level >= MAX_LEVEL) {
+    return <span style={{ color: '#ffd700', fontSize: 10, fontStyle: 'italic' }}>Max Level</span>;
+  }
+  const nextThreshold = XP_THRESHOLDS[adv.level];
+  const prevThreshold = XP_THRESHOLDS[adv.level - 1];
+  const pct = Math.min(100, ((adv.xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+      <div style={{ background: '#2a1a08', borderRadius: 3, height: 5, flex: 1, border: '1px solid #3d2410' }}>
+        <div style={{
+          background: isElite(adv) ? 'linear-gradient(90deg, #f1c40f, #e67e22)' : 'linear-gradient(90deg, #5dade2, #3498db)',
+          width: `${pct}%`,
+          height: '100%',
+          borderRadius: 3,
+          transition: 'width 0.4s ease',
+        }} />
+      </div>
+      <span style={{ color: '#666', fontSize: 9, whiteSpace: 'nowrap' }}>{adv.xp}/{nextThreshold}</span>
+    </div>
+  );
+}
+
+function LevelBadge({ level }: { level: number }) {
+  const elite = level >= ELITE_LEVEL;
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 'bold',
+      padding: '1px 5px',
+      borderRadius: 3,
+      background: elite ? 'linear-gradient(135deg, #f1c40f, #e67e22)' : 'rgba(255,255,255,0.1)',
+      color: elite ? '#1a0d00' : '#aaa',
+      border: elite ? '1px solid #f1c40f' : '1px solid #444',
+      flexShrink: 0,
+    }}>
+      {elite ? '★' : ''}Lv{level}
+    </span>
+  );
+}
 
 function GoldBar({ gold }: { gold: number }) {
   const pct = Math.min(100, (gold / WIN_GOLD) * 100);
@@ -56,29 +106,42 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
   onRecruit: (id: string) => void;
 }) {
   const color = CLASS_COLORS[adv.class];
+  const elite = isElite(adv);
+
+  const eliteBorder = elite
+    ? `1px solid #f1c40f`
+    : `1px solid ${isSelected ? color : '#5c3315'}`;
+
+  const eliteGlow = elite
+    ? `0 0 8px #f1c40f66, 0 0 2px #f1c40f44`
+    : isSelected ? `0 0 4px ${color}44` : 'none';
+
   return (
     <div
       onClick={onSelect}
       style={{
-        background: isSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
-        border: `1px solid ${isSelected ? color : '#5c3315'}`,
+        background: isSelected ? 'rgba(255,255,255,0.12)' : elite ? 'rgba(241,196,15,0.06)' : 'rgba(255,255,255,0.05)',
+        border: eliteBorder,
         borderRadius: 6,
         padding: '6px 8px',
         marginBottom: 4,
         cursor: 'pointer',
         transition: 'all 0.15s',
+        boxShadow: eliteGlow,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
         <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 13, flex: 1 }}>{adv.name}</span>
+        <LevelBadge level={adv.level} />
         <span style={{ color: '#aaa', fontSize: 10 }}>
           {adv.status === 'on-quest' ? 'On Quest' : adv.status === 'idle' ? 'Visitor' : 'Ready'}
         </span>
       </div>
-      <div style={{ marginTop: 2, display: 'flex', gap: 8 }}>
+      <div style={{ marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
         <span style={{ color: '#aaa', fontSize: 11 }}>{CLASS_LABELS[adv.class]}</span>
         <span style={{ color: '#f1c40f', fontSize: 11 }}>⚡ {adv.power}</span>
+        <XpBar adv={adv} />
       </div>
       {adv.status === 'idle' && isSelected && (
         <button
@@ -112,6 +175,13 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
 }) {
   const color = CLASS_COLORS[adv.class];
   const isRecruited = adv.status === 'recruited';
+  const elite = isElite(adv);
+  const nextThreshold = adv.level < MAX_LEVEL ? XP_THRESHOLDS[adv.level] : null;
+  const prevThreshold = XP_THRESHOLDS[adv.level - 1];
+  const xpPct = nextThreshold !== null
+    ? Math.min(100, ((adv.xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100)
+    : 100;
+
   return (
     <div style={{
       position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
@@ -119,11 +189,13 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
     }}>
       <div style={{
         background: 'rgba(15,8,2,0.96)',
-        border: `2px solid ${color}`,
+        border: `2px solid ${elite ? '#f1c40f' : color}`,
         borderRadius: 12,
         padding: '16px 20px',
-        minWidth: 240,
-        boxShadow: `0 0 24px ${color}44, 0 4px 16px rgba(0,0,0,0.8)`,
+        minWidth: 260,
+        boxShadow: elite
+          ? `0 0 24px #f1c40f66, 0 0 8px #f1c40f44, 0 4px 16px rgba(0,0,0,0.8)`
+          : `0 0 24px ${color}44, 0 4px 16px rgba(0,0,0,0.8)`,
         fontFamily: 'serif',
         textAlign: 'center',
         position: 'relative',
@@ -135,16 +207,71 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
             background: 'none', border: 'none', color: '#666', fontSize: 16, cursor: 'pointer',
           }}
         >✕</button>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+
+        {elite && (
+          <div style={{
+            fontSize: 10, fontWeight: 'bold', color: '#1a0d00',
+            background: 'linear-gradient(90deg, #f1c40f, #e67e22)',
+            borderRadius: 8, padding: '2px 8px', marginBottom: 8, display: 'inline-block',
+          }}>
+            ★ ELITE ADVENTURER ★
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
           <div style={{ width: 14, height: 14, borderRadius: 3, background: color }} />
           <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 17 }}>{adv.name}</span>
         </div>
         <div style={{ color: '#b0a090', fontSize: 13, marginBottom: 4 }}>
           {CLASS_LABELS[adv.class]}
         </div>
-        <div style={{ color: '#f1c40f', fontSize: 14, marginBottom: 12 }}>
-          ⚡ Power: {adv.power}
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
+          <div style={{ color: '#f1c40f', fontSize: 14 }}>⚡ Power: {adv.power}</div>
+          <div style={{
+            fontSize: 12, fontWeight: 'bold',
+            color: elite ? '#f1c40f' : '#aaa',
+          }}>
+            {elite ? '★' : ''}Lv {adv.level}
+          </div>
         </div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: `1px solid ${color}44`,
+          borderRadius: 6,
+          padding: '6px 10px',
+          marginBottom: 12,
+          fontSize: 12,
+        }}>
+          <div style={{ color: '#888', fontSize: 10, marginBottom: 2 }}>Class Ability</div>
+          <div style={{ color: color }}>{CLASS_PASSIVE_LABELS[adv.class]}</div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          {adv.level < MAX_LEVEL ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ color: '#888', fontSize: 10 }}>XP to next level</span>
+                <span style={{ color: '#aaa', fontSize: 10 }}>{adv.xp} / {nextThreshold}</span>
+              </div>
+              <div style={{ background: '#2a1a08', borderRadius: 4, height: 6, border: '1px solid #3d2410' }}>
+                <div style={{
+                  background: elite
+                    ? 'linear-gradient(90deg, #f1c40f, #e67e22)'
+                    : 'linear-gradient(90deg, #5dade2, #3498db)',
+                  width: `${xpPct}%`,
+                  height: '100%',
+                  borderRadius: 4,
+                  transition: 'width 0.4s ease',
+                }} />
+              </div>
+            </>
+          ) : (
+            <div style={{ color: '#ffd700', fontSize: 12, fontStyle: 'italic' }}>Maximum level reached!</div>
+          )}
+        </div>
+
         {!isRecruited ? (
           <button
             onClick={() => { onRecruit(adv.id); onPlaySound('recruit'); onClose(); }}
@@ -179,10 +306,20 @@ function ActiveQuestItem({ quest }: { quest: Quest }) {
     return () => clearInterval(t);
   }, []);
   const timeLeft = quest.completesAt ? Math.max(0, Math.ceil((quest.completesAt - now) / 1000)) : null;
+  const typeColor = QUEST_TYPE_COLORS[quest.questType];
 
   return (
     <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #3d2410' }}>
-      <div style={{ color: '#e8d5a0', fontSize: 12, fontWeight: 'bold' }}>{quest.name}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+        <span style={{
+          fontSize: 9, fontWeight: 'bold', color: typeColor,
+          background: `${typeColor}22`, border: `1px solid ${typeColor}44`,
+          borderRadius: 3, padding: '1px 4px',
+        }}>
+          {QUEST_TYPE_LABELS[quest.questType]}
+        </span>
+        <div style={{ color: '#e8d5a0', fontSize: 12, fontWeight: 'bold', flex: 1 }}>{quest.name}</div>
+      </div>
       <div style={{ color: '#f39c12', fontSize: 11 }}>
         {timeLeft !== null ? `Returns in ${timeLeft}s` : 'In progress...'}
       </div>
@@ -202,7 +339,12 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
   );
 
   const selectedAdventurers = availableAdventurers.filter(a => selectedIds.has(a.id));
-  const selectedPower = selectedAdventurers.reduce((sum, a) => sum + a.power, 0);
+
+  function getEffectivePower(adv: Adventurer): number {
+    return adv.power + getAdventurerBonus(adv, quest.questType);
+  }
+
+  const selectedPower = selectedAdventurers.reduce((sum, a) => sum + getEffectivePower(a), 0);
   const canDispatch = quest.status === 'available' && selectedAdventurers.length > 0 && gold >= DISPATCH_COST;
   const willSucceed = selectedPower >= quest.powerRequired;
 
@@ -215,6 +357,8 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
   const statusLabel: Record<string, string> = {
     available: 'Available', active: 'In Progress', completed: 'Completed', failed: 'Failed',
   };
+
+  const typeColor = QUEST_TYPE_COLORS[quest.questType];
 
   const toggleAdventurer = (id: string) => {
     setSelectedIds(prev => {
@@ -234,7 +378,18 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
       marginBottom: 12,
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-        <h3 style={{ color: '#e8d5a0', margin: 0, fontSize: 15, flex: 1 }}>{quest.name}</h3>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 'bold', color: typeColor,
+              background: `${typeColor}22`, border: `1px solid ${typeColor}44`,
+              borderRadius: 4, padding: '1px 6px',
+            }}>
+              {QUEST_TYPE_LABELS[quest.questType]}
+            </span>
+          </div>
+          <h3 style={{ color: '#e8d5a0', margin: 0, fontSize: 15 }}>{quest.name}</h3>
+        </div>
         <span style={{
           color: statusColors[quest.status],
           fontSize: 11,
@@ -252,7 +407,7 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
         <span style={{ color: '#e74c3c' }}>Min Power: ⚡{quest.powerRequired}</span>
         {quest.status === 'available' && (
           <span style={{ color: willSucceed ? '#2ecc71' : '#e74c3c' }}>
-            Selected: ⚡{selectedPower}
+            Effective: ⚡{selectedPower}
           </span>
         )}
         {timeLeft !== null && <span style={{ color: '#f39c12' }}>Returns in: {timeLeft}s</span>}
@@ -264,15 +419,19 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
           {availableAdventurers.map(adv => {
             const checked = selectedIds.has(adv.id);
             const color = CLASS_COLORS[adv.class];
+            const effPower = getEffectivePower(adv);
+            const hasBonus = effPower > adv.power;
+            const elite = isElite(adv);
             return (
               <label
                 key={adv.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '4px 6px', borderRadius: 4, marginBottom: 2,
-                  background: checked ? 'rgba(255,255,255,0.08)' : 'transparent',
-                  border: `1px solid ${checked ? color : 'transparent'}`,
+                  background: checked ? (elite ? 'rgba(241,196,15,0.08)' : 'rgba(255,255,255,0.08)') : 'transparent',
+                  border: `1px solid ${checked ? (elite ? '#f1c40f' : color) : 'transparent'}`,
                   cursor: 'pointer',
+                  boxShadow: checked && elite ? '0 0 6px #f1c40f33' : 'none',
                 }}
               >
                 <input
@@ -282,11 +441,15 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
                   style={{ accentColor: color, width: 13, height: 13 }}
                 />
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-                <span style={{ color: '#e8d5a0', fontSize: 12, flex: 1 }}>{adv.name}</span>
-                <span style={{ color: '#aaa', fontSize: 11 }}>
-                  {CLASS_LABELS[adv.class]}
+                <span style={{ color: '#e8d5a0', fontSize: 12, flex: 1 }}>
+                  {adv.name}
+                  {elite && <span style={{ color: '#f1c40f', marginLeft: 3 }}>★</span>}
                 </span>
-                <span style={{ color: '#f1c40f', fontSize: 11 }}>⚡{adv.power}</span>
+                <LevelBadge level={adv.level} />
+                <span style={{ color: '#aaa', fontSize: 11 }}>{CLASS_LABELS[adv.class]}</span>
+                <span style={{ color: hasBonus ? '#2ecc71' : '#f1c40f', fontSize: 11 }}>
+                  ⚡{effPower}{hasBonus ? ` (+${effPower - adv.power})` : ''}
+                </span>
               </label>
             );
           })}
@@ -350,7 +513,7 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
           border: '2px solid #7a4a1e',
           borderRadius: 12,
           padding: 24,
-          width: 560,
+          width: 580,
           maxHeight: '80vh',
           overflowY: 'auto',
           boxShadow: '0 0 40px rgba(0,0,0,0.8)',
@@ -362,8 +525,8 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>
         <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
-          Dispatching costs <span style={{ color: '#ffd700' }}>{DISPATCH_COST}g</span>. All idle recruits are sent together.
-          Party power must meet or exceed requirements to succeed.
+          Dispatching costs <span style={{ color: '#ffd700' }}>{DISPATCH_COST}g</span>.
+          Class abilities grant bonus power on matching quest types — shown in <span style={{ color: '#2ecc71' }}>green</span>.
         </p>
         {quests.map(quest => (
           <QuestCard
@@ -471,7 +634,7 @@ export function HUD({
       {/* Left panel */}
       <div style={{
         position: 'absolute', top: 80, left: 0, bottom: 0,
-        width: 210, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
+        width: 220, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
         pointerEvents: 'auto', overflowY: 'auto',
       }}>
         {roster.length > 0 && (
@@ -549,7 +712,7 @@ export function HUD({
         </div>
       </div>
 
-      {/* Recruit popup — shown when a visitor (idle/entering/recruited) is selected */}
+      {/* Recruit popup */}
       {selectedAdv && !showQuestBoard && (
         <RecruitPopup
           adv={selectedAdv}

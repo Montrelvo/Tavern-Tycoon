@@ -4,8 +4,10 @@ import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
   QUEST_POOL, WIN_GOLD, MAX_PARTY_SIZE, DISPATCH_COST,
   ENTRANCE_POS, WANDERING_POSITIONS, WAITING_POSITIONS,
-  SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME
+  SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
+  XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
 } from './constants';
+import { calculateEffectivePower } from './questUtils';
 
 let adventurerCounter = 0;
 let questCounter = 0;
@@ -33,6 +35,8 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
     name: pickName(),
     class: cls,
     power: Math.floor(Math.random() * 8) + 3,
+    xp: 0,
+    level: 1,
     status: 'entering',
     position: [...ENTRANCE_POS] as [number, number, number],
     targetPosition: targetPos,
@@ -49,6 +53,18 @@ function generateQuests(): Quest[] {
     assignedAdventurerIds: [],
   }));
 }
+
+function getLevelForXp(xp: number): number {
+  let level = 1;
+  for (let i = XP_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= XP_THRESHOLDS[i]) {
+      level = i + 1;
+      break;
+    }
+  }
+  return Math.min(level, MAX_LEVEL);
+}
+
 
 const initialQuests = generateQuests();
 
@@ -124,10 +140,9 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'DISPATCH_QUEST': {
       const quest = state.quests.find(q => q.id === action.questId);
       if (!quest || state.gold < DISPATCH_COST) return state;
-      const assignedPower = state.adventurers
-        .filter(a => action.adventurerIds.includes(a.id))
-        .reduce((sum, a) => sum + a.power, 0);
-      const success = assignedPower >= quest.powerRequired;
+      const assignedAdventurers = state.adventurers.filter(a => action.adventurerIds.includes(a.id));
+      const effectivePower = calculateEffectivePower(assignedAdventurers, quest.questType);
+      const success = effectivePower >= quest.powerRequired;
       return {
         ...state,
         gold: state.gold - DISPATCH_COST,
@@ -155,8 +170,34 @@ function reducer(state: GameState, action: GameAction): GameState {
 
       let newAdventurers = state.adventurers;
       let logMsg: string;
+
       if (action.success) {
+        const xpGain = Math.ceil(quest.powerRequired * 1.2);
+        newAdventurers = state.adventurers.map(adv => {
+          if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
+          const newXp = adv.xp + xpGain;
+          const newLevel = getLevelForXp(newXp);
+          const leveledUp = newLevel > adv.level;
+          const powerIncrease = leveledUp ? (newLevel - adv.level) * POWER_PER_LEVEL : 0;
+          return {
+            ...adv,
+            xp: newXp,
+            level: newLevel,
+            power: adv.power + powerIncrease,
+          };
+        });
+
+        const levelUps = newAdventurers
+          .filter(a => quest.assignedAdventurerIds.includes(a.id))
+          .filter((a, i) => {
+            const before = state.adventurers.find(b => b.id === a.id);
+            return before && a.level > before.level;
+          });
+
         logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
+        if (levelUps.length > 0) {
+          logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}!`).join(' ')}`;
+        }
       } else {
         newAdventurers = state.adventurers.filter(a => !quest.assignedAdventurerIds.includes(a.id));
         const lostCount = quest.assignedAdventurerIds.length;
@@ -251,10 +292,9 @@ export function useGameState() {
       const now = Date.now();
       activeQuests.forEach(quest => {
         if (!quest.completesAt || quest.completesAt > now) return;
-        const assignedPower = state.adventurers
-          .filter(a => quest.assignedAdventurerIds.includes(a.id))
-          .reduce((sum, a) => sum + a.power, 0);
-        const success = assignedPower >= quest.powerRequired;
+        const assignedAdventurers = state.adventurers.filter(a => quest.assignedAdventurerIds.includes(a.id));
+        const effectivePower = calculateEffectivePower(assignedAdventurers, quest.questType);
+        const success = effectivePower >= quest.powerRequired;
         dispatch({ type: 'QUEST_RESOLVED', questId: quest.id, success });
         if (success) {
           const returnPositions: [number, number, number][] = quest.assignedAdventurerIds.map(

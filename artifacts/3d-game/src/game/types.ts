@@ -1,11 +1,14 @@
 export type AdventurerClass = 'warrior' | 'mage' | 'rogue' | 'healer';
 export type AdventurerStatus = 'entering' | 'idle' | 'recruited' | 'on-quest';
+export type QuestType = 'beast' | 'arcane' | 'stealth' | 'combat';
 
 export interface Adventurer {
   id: string;
   name: string;
   class: AdventurerClass;
   power: number;
+  xp: number;
+  level: number;
   status: AdventurerStatus;
   position: [number, number, number];
   targetPosition: [number, number, number];
@@ -19,6 +22,7 @@ export interface Quest {
   reward: number;
   powerRequired: number;
   duration: number;
+  questType: QuestType;
   status: 'available' | 'active' | 'completed' | 'failed';
   assignedAdventurerIds: string[];
   completesAt?: number;

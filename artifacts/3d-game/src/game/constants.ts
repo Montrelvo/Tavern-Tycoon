@@ -1,4 +1,4 @@
-import type { AdventurerClass } from './types';
+import type { AdventurerClass, QuestType } from './types';
 
 export const ADVENTURER_NAMES = [
   'Aldric', 'Brynn', 'Caelum', 'Dara', 'Eryn',
@@ -23,17 +23,50 @@ export const CLASS_LABELS: Record<AdventurerClass, string> = {
   healer: 'Healer',
 };
 
+export const CLASS_PASSIVE_LABELS: Record<AdventurerClass, string> = {
+  warrior: '+3 power on Beast quests',
+  mage: '+3 power on Arcane quests',
+  rogue: '+3 power on Stealth quests',
+  healer: '+2 power on all quests',
+};
+
+export const CLASS_BONUS_QUEST_TYPE: Record<AdventurerClass, QuestType | 'all'> = {
+  warrior: 'beast',
+  mage: 'arcane',
+  rogue: 'stealth',
+  healer: 'all',
+};
+
+export const QUEST_TYPE_LABELS: Record<QuestType, string> = {
+  beast: 'Beast',
+  arcane: 'Arcane',
+  stealth: 'Stealth',
+  combat: 'Combat',
+};
+
+export const QUEST_TYPE_COLORS: Record<QuestType, string> = {
+  beast: '#e67e22',
+  arcane: '#9b59b6',
+  stealth: '#27ae60',
+  combat: '#c0392b',
+};
+
+export const XP_THRESHOLDS = [0, 15, 35, 60, 90];
+export const MAX_LEVEL = 5;
+export const ELITE_LEVEL = 4;
+export const POWER_PER_LEVEL = 2;
+
 export const QUEST_POOL = [
-  { name: 'Clear the Spider Caves', description: 'Giant spiders have taken over the old mines east of town.', reward: 80, powerRequired: 8, duration: 25 },
-  { name: 'Escort the Merchant', description: 'A wealthy merchant needs protection on the northern road.', reward: 50, powerRequired: 5, duration: 15 },
-  { name: 'Slay the River Troll', description: 'A massive troll blocks the bridge to Millhaven.', reward: 100, powerRequired: 12, duration: 30 },
-  { name: 'Recover the Lost Relic', description: 'An ancient relic was stolen by bandits in the Ashwood.', reward: 120, powerRequired: 15, duration: 35 },
-  { name: 'Hunt the Dire Wolf Pack', description: 'Wolves have been terrorizing farming villages to the south.', reward: 70, powerRequired: 9, duration: 20 },
-  { name: 'Explore the Haunted Keep', description: 'Restless spirits haunt the old castle north of town.', reward: 90, powerRequired: 11, duration: 25 },
-  { name: 'Retrieve Stolen Cargo', description: 'River pirates stole Guild shipments at the docks.', reward: 60, powerRequired: 6, duration: 18 },
-  { name: 'Defeat the Goblin Warlord', description: 'Goblins led by a cunning warlord raid supply wagons.', reward: 110, powerRequired: 13, duration: 30 },
-  { name: 'Purge the Undead Crypt', description: 'Necromancers have raised an army in the old burial grounds.', reward: 130, powerRequired: 16, duration: 40 },
-  { name: 'Rescue the Hostages', description: 'Cultists have taken hostages in the mountains.', reward: 95, powerRequired: 10, duration: 22 },
+  { name: 'Clear the Spider Caves', description: 'Giant spiders have taken over the old mines east of town.', reward: 80, powerRequired: 8, duration: 25, questType: 'beast' as QuestType },
+  { name: 'Escort the Merchant', description: 'A wealthy merchant needs protection on the northern road.', reward: 50, powerRequired: 5, duration: 15, questType: 'stealth' as QuestType },
+  { name: 'Slay the River Troll', description: 'A massive troll blocks the bridge to Millhaven.', reward: 100, powerRequired: 12, duration: 30, questType: 'beast' as QuestType },
+  { name: 'Recover the Lost Relic', description: 'An ancient relic was stolen by bandits in the Ashwood.', reward: 120, powerRequired: 15, duration: 35, questType: 'arcane' as QuestType },
+  { name: 'Hunt the Dire Wolf Pack', description: 'Wolves have been terrorizing farming villages to the south.', reward: 70, powerRequired: 9, duration: 20, questType: 'beast' as QuestType },
+  { name: 'Explore the Haunted Keep', description: 'Restless spirits haunt the old castle north of town.', reward: 90, powerRequired: 11, duration: 25, questType: 'arcane' as QuestType },
+  { name: 'Retrieve Stolen Cargo', description: 'River pirates stole Guild shipments at the docks.', reward: 60, powerRequired: 6, duration: 18, questType: 'stealth' as QuestType },
+  { name: 'Defeat the Goblin Warlord', description: 'Goblins led by a cunning warlord raid supply wagons.', reward: 110, powerRequired: 13, duration: 30, questType: 'combat' as QuestType },
+  { name: 'Purge the Undead Crypt', description: 'Necromancers have raised an army in the old burial grounds.', reward: 130, powerRequired: 16, duration: 40, questType: 'arcane' as QuestType },
+  { name: 'Rescue the Hostages', description: 'Cultists have taken hostages in the mountains.', reward: 95, powerRequired: 10, duration: 22, questType: 'stealth' as QuestType },
 ];
 
 export const WIN_GOLD = 500;
