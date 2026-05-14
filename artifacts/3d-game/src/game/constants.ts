@@ -69,7 +69,6 @@ export const QUEST_POOL = [
   { name: 'Rescue the Hostages', description: 'Cultists have taken hostages in the mountains.', reward: 95, powerRequired: 10, duration: 22, questType: 'stealth' as QuestType },
 ];
 
-export const WIN_GOLD = 500;
 export const MAX_PARTY_SIZE = 8;
 export const DISPATCH_COST = 10;
 export const ROSTER_CAPS = [5, 8, 12];
