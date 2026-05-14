@@ -106,7 +106,7 @@ function getLevelForXp(xp: number): number {
 
 const DEFAULT_UPGRADES = { cook: 0 as const, bard: false, rosterSlots: 1 as const };
 
-function getRosterMax(upgrades: typeof DEFAULT_UPGRADES & { rosterSlots: 1 | 2 | 3 }): number {
+function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
   const caps = [5, 8, 12];
   return caps[(upgrades.rosterSlots ?? 1) - 1];
 }
