@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import type { Adventurer, Quest } from '../game/types';
+import type { Adventurer, Quest, Upgrades } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
   WIN_GOLD, DISPATCH_COST, ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
-  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS,
+  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS, CLASS_STAT_COLORS,
 } from '../game/constants';
 import { getAdventurerBonus } from '../game/questUtils';
 
@@ -15,12 +15,15 @@ interface HUDProps {
   gamePhase: 'playing' | 'won' | 'lost';
   selectedAdventurerId: string | null;
   showQuestBoard: boolean;
+  upgrades: Upgrades;
   onRecruit: (id: string) => void;
   onSelectAdventurer: (id: string | null) => void;
   onToggleQuestBoard: () => void;
   onDispatchQuest: (questId: string, adventurerIds: string[]) => void;
   onRefreshQuests: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
+  onNewGame: () => void;
+  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard') => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -141,8 +144,33 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
       <div style={{ marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
         <span style={{ color: '#aaa', fontSize: 11 }}>{CLASS_LABELS[adv.class]}</span>
         <span style={{ color: '#f1c40f', fontSize: 11 }}>⚡ {adv.power}</span>
+        {adv.attack !== undefined && (
+          <span style={{ color: CLASS_STAT_COLORS.attack, fontSize: 11 }}>⚔ {adv.attack}</span>
+        )}
+        {adv.defense !== undefined && (
+          <span style={{ color: CLASS_STAT_COLORS.defense, fontSize: 11 }}>🛡 {adv.defense}</span>
+        )}
         <XpBar adv={adv} />
       </div>
+      {adv.hp !== undefined && adv.maxHp !== undefined && (
+        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ color: CLASS_STAT_COLORS.hp, fontSize: 9, flexShrink: 0 }}>HP</span>
+          <div style={{ background: '#1a0a0a', borderRadius: 2, height: 4, flex: 1, border: '1px solid #3d1515' }}>
+            <div style={{
+              background: adv.hp / adv.maxHp > 0.5
+                ? '#27ae60'
+                : adv.hp / adv.maxHp > 0.25
+                ? '#e67e22'
+                : '#e74c3c',
+              width: `${Math.max(0, (adv.hp / adv.maxHp) * 100)}%`,
+              height: '100%',
+              borderRadius: 2,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+          <span style={{ color: '#666', fontSize: 9, whiteSpace: 'nowrap' }}>{adv.hp}/{adv.maxHp}</span>
+        </div>
+      )}
       {adv.status === 'idle' && isSelected && (
         <button
           onClick={(e) => { e.stopPropagation(); onRecruit(adv.id); }}
@@ -233,6 +261,23 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
             color: elite ? '#f1c40f' : '#aaa',
           }}>
             {elite ? '★' : ''}Lv {adv.level}
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 10,
+        }}>
+          <div style={{ textAlign: 'center', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 6, padding: '5px 10px', minWidth: 60 }}>
+            <div style={{ color: CLASS_STAT_COLORS.hp, fontSize: 9, marginBottom: 2 }}>HP</div>
+            <div style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>{adv.hp}/{adv.maxHp}</div>
+          </div>
+          <div style={{ textAlign: 'center', background: 'rgba(230,126,34,0.1)', border: '1px solid rgba(230,126,34,0.3)', borderRadius: 6, padding: '5px 10px', minWidth: 60 }}>
+            <div style={{ color: CLASS_STAT_COLORS.attack, fontSize: 9, marginBottom: 2 }}>ATTACK</div>
+            <div style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>{adv.attack}</div>
+          </div>
+          <div style={{ textAlign: 'center', background: 'rgba(52,152,219,0.1)', border: '1px solid rgba(52,152,219,0.3)', borderRadius: 6, padding: '5px 10px', minWidth: 60 }}>
+            <div style={{ color: CLASS_STAT_COLORS.defense, fontSize: 9, marginBottom: 2 }}>DEFENSE</div>
+            <div style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>{adv.defense}</div>
           </div>
         </div>
 
@@ -487,6 +532,134 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
   );
 }
 
+function UpgradesModal({ gold, upgrades, onHire, onClose }: {
+  gold: number;
+  upgrades: Upgrades;
+  onHire: (upgrade: 'cook' | 'cook_plus' | 'bard') => void;
+  onClose: () => void;
+}) {
+  const upgradeDefs = [
+    {
+      id: 'cook' as const,
+      title: 'Hire a Cook',
+      cost: 80,
+      effect: 'HP recovery: 1 → 3 HP per 10s for all tavern adventurers',
+      available: upgrades.cook === 0,
+      purchased: upgrades.cook >= 1,
+      canAfford: gold >= 80,
+      color: '#f0f0f0',
+    },
+    {
+      id: 'cook_plus' as const,
+      title: 'Cook+ (Master Chef)',
+      cost: 160,
+      effect: 'HP recovery: 3 → 6 HP per 10s for all tavern adventurers',
+      available: upgrades.cook === 1,
+      purchased: upgrades.cook === 2,
+      canAfford: gold >= 160,
+      color: '#ffd700',
+    },
+    {
+      id: 'bard' as const,
+      title: 'Hire a Bard',
+      cost: 60,
+      effect: 'Quest XP earned +25% for all adventurers',
+      available: !upgrades.bard,
+      purchased: upgrades.bard,
+      canAfford: gold >= 60,
+      color: '#a855f7',
+    },
+  ];
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#1a0d04',
+          border: '2px solid #7a4a1e',
+          borderRadius: 12,
+          padding: 24,
+          width: 480,
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          boxShadow: '0 0 40px rgba(0,0,0,0.8)',
+          fontFamily: 'serif',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h2 style={{ color: '#e8d5a0', margin: 0, fontSize: 22 }}>Tavern Upgrades</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+        <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
+          Hire staff to improve your tavern's services. You have <span style={{ color: '#ffd700' }}>{gold}g</span>.
+        </p>
+        {upgradeDefs.map(u => {
+          const locked = !u.available && !u.purchased;
+          return (
+            <div
+              key={u.id}
+              style={{
+                background: u.purchased ? 'rgba(46,204,113,0.08)' : 'rgba(255,255,255,0.04)',
+                border: u.purchased ? '2px solid #2ecc71' : '1px solid #5c3315',
+                borderRadius: 8,
+                padding: '14px 16px',
+                marginBottom: 12,
+                opacity: locked ? 0.45 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: u.color, flexShrink: 0 }} />
+                <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 15, flex: 1 }}>{u.title}</span>
+                {u.purchased && (
+                  <span style={{ color: '#2ecc71', fontSize: 13, fontWeight: 'bold' }}>✓ Hired</span>
+                )}
+                {!u.purchased && !locked && (
+                  <span style={{ color: '#ffd700', fontSize: 13 }}>{u.cost}g</span>
+                )}
+              </div>
+              <p style={{ color: '#aaa', fontSize: 13, margin: '0 0 10px', lineHeight: 1.4 }}>{u.effect}</p>
+              {u.available && (
+                <button
+                  onClick={() => { onHire(u.id); }}
+                  disabled={!u.canAfford}
+                  style={{
+                    background: u.canAfford
+                      ? 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)'
+                      : '#3a3a3a',
+                    border: u.canAfford ? '1px solid #a0631e' : '1px solid #555',
+                    borderRadius: 6,
+                    color: u.canAfford ? '#e8d5a0' : '#666',
+                    padding: '7px 16px',
+                    cursor: u.canAfford ? 'pointer' : 'not-allowed',
+                    width: '100%',
+                    fontSize: 13,
+                    fontWeight: 'bold',
+                    fontFamily: 'serif',
+                  }}
+                >
+                  {u.canAfford ? `Hire for ${u.cost}g` : `Need ${u.cost}g (${u.cost - gold}g short)`}
+                </button>
+              )}
+              {locked && (
+                <div style={{ color: '#7a6a5a', fontSize: 12, fontStyle: 'italic' }}>
+                  {u.id === 'cook_plus' ? 'Requires Cook first' : ''}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onClose }: {
   quests: Quest[];
   adventurers: Adventurer[];
@@ -633,10 +806,11 @@ function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer
   );
 }
 
-function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
+function RightPanel({ activeQuests, gameLog, onToggleQuestBoard, onToggleUpgrades }: {
   activeQuests: Quest[];
   gameLog: string[];
   onToggleQuestBoard: () => void;
+  onToggleUpgrades: () => void;
 }) {
   const [questsOpen, setQuestsOpen] = useState(true);
   const [logOpen, setLogOpen] = useState(true);
@@ -665,6 +839,25 @@ function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
         }}
       >
         Quest Board
+      </button>
+      <button
+        onClick={onToggleUpgrades}
+        style={{
+          background: 'linear-gradient(180deg, #2d1b5a 0%, #1a0d3a 100%)',
+          border: '1px solid #6b3fa0',
+          borderRadius: 8,
+          color: '#d4b8f0',
+          fontFamily: 'serif',
+          fontWeight: 'bold',
+          fontSize: 15,
+          padding: '10px 16px',
+          cursor: 'pointer',
+          letterSpacing: 0.5,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          flexShrink: 0,
+        }}
+      >
+        Upgrades
       </button>
 
       {activeQuests.length > 0 && (
@@ -701,9 +894,11 @@ function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
 
 export function HUD({
   gold, adventurers, quests, gameLog, gamePhase,
-  selectedAdventurerId, showQuestBoard,
+  selectedAdventurerId, showQuestBoard, upgrades,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
+  onNewGame, onHireUpgrade,
 }: HUDProps) {
+  const [showUpgrades, setShowUpgrades] = useState(false);
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
   const activeQuests = quests.filter(q => q.status === 'active');
@@ -711,6 +906,20 @@ export function HUD({
   const selectedAdv = selectedAdventurerId
     ? adventurers.find(a => a.id === selectedAdventurerId) ?? null
     : null;
+
+  const newGameButtonStyle: React.CSSProperties = {
+    marginTop: 24,
+    background: 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)',
+    border: '1px solid #a0631e',
+    borderRadius: 8,
+    color: '#e8d5a0',
+    fontFamily: 'serif',
+    fontWeight: 'bold',
+    fontSize: 16,
+    padding: '10px 32px',
+    cursor: 'pointer',
+    letterSpacing: 0.5,
+  };
 
   if (gamePhase === 'won') {
     return (
@@ -724,6 +933,7 @@ export function HUD({
           <h1 style={{ color: '#ffd700', fontSize: 40, margin: '0 0 12px' }}>Victory!</h1>
           <p style={{ color: '#e8d5a0', fontSize: 20 }}>Your tavern earned {gold} gold!</p>
           <p style={{ color: '#aaa', fontSize: 15, marginTop: 8 }}>Your adventurers are legends across the land.</p>
+          <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
         </div>
       </div>
     );
@@ -743,9 +953,7 @@ export function HUD({
           <p style={{ color: '#888', fontSize: 15, marginTop: 8 }}>
             Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> before falling silent.
           </p>
-          <p style={{ color: '#7a6a5a', fontSize: 13, marginTop: 16, fontStyle: 'italic' }}>
-            Reload the page to try again.
-          </p>
+          <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
         </div>
       </div>
     );
@@ -759,13 +967,31 @@ export function HUD({
         display: 'flex', justifyContent: 'center', padding: '10px 16px',
         pointerEvents: 'none',
       }}>
-        <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 300 }}>
+        <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 300, position: 'relative' }}>
           <GoldBar gold={gold} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888' }}>
             <span>Roster: {roster.length}/8</span>
             <span>Visitors: {wanderers.length}</span>
             <span>Active Quests: {activeQuests.length}</span>
           </div>
+          <button
+            onClick={onNewGame}
+            title="Wipe save and start a new game"
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              background: 'rgba(60,20,5,0.8)',
+              border: '1px solid #5c3315',
+              borderRadius: 5,
+              color: '#7a6a5a',
+              fontFamily: 'serif',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            New Game
+          </button>
         </div>
       </div>
 
@@ -783,6 +1009,7 @@ export function HUD({
         activeQuests={activeQuests}
         gameLog={gameLog}
         onToggleQuestBoard={onToggleQuestBoard}
+        onToggleUpgrades={() => setShowUpgrades(v => !v)}
       />
 
       {/* Recruit popup */}
@@ -833,6 +1060,17 @@ export function HUD({
             onDispatch={onDispatchQuest}
             onRefresh={onRefreshQuests}
             onClose={onToggleQuestBoard}
+          />
+        </div>
+      )}
+
+      {showUpgrades && (
+        <div style={{ pointerEvents: 'auto' }}>
+          <UpgradesModal
+            gold={gold}
+            upgrades={upgrades}
+            onHire={(upgrade) => { onHireUpgrade(upgrade); }}
+            onClose={() => setShowUpgrades(false)}
           />
         </div>
       )}

@@ -73,6 +73,16 @@ export const WIN_GOLD = 500;
 export const MAX_PARTY_SIZE = 8;
 export const DISPATCH_COST = 10;
 
+export const CLASS_STAT_COLORS: Record<string, string> = {
+  hp: '#e74c3c',
+  attack: '#e67e22',
+  defense: '#3498db',
+};
+
+export const WANDER_INTERVAL_MIN = 8000;
+export const WANDER_INTERVAL_MAX = 15000;
+export const HP_RECOVERY_INTERVAL = 10000;
+
 export const SPAWN_INTERVAL_MIN = 12000;
 export const SPAWN_INTERVAL_MAX = 22000;
 export const ADVENTURER_LEAVE_TIME = 45000;

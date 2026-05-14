@@ -9,6 +9,10 @@ export interface Adventurer {
   power: number;
   xp: number;
   level: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
   status: AdventurerStatus;
   position: [number, number, number];
   targetPosition: [number, number, number];
@@ -28,6 +32,11 @@ export interface Quest {
   completesAt?: number;
 }
 
+export interface Upgrades {
+  cook: 0 | 1 | 2;
+  bard: boolean;
+}
+
 export interface GameState {
   gold: number;
   adventurers: Adventurer[];
@@ -36,6 +45,7 @@ export interface GameState {
   gamePhase: 'playing' | 'won' | 'lost';
   selectedAdventurerId: string | null;
   showQuestBoard: boolean;
+  upgrades: Upgrades;
 }
 
 export type GameAction =
@@ -48,4 +58,8 @@ export type GameAction =
   | { type: 'ADVENTURERS_RETURNED'; adventurerIds: string[]; targetPositions: [number, number, number][] }
   | { type: 'REMOVE_ADVENTURER'; id: string }
   | { type: 'TOGGLE_QUEST_BOARD' }
-  | { type: 'REFRESH_QUESTS' };
+  | { type: 'REFRESH_QUESTS' }
+  | { type: 'NEW_GAME'; freshState: GameState }
+  | { type: 'WANDER_TICK'; updates: { id: string; target: [number, number, number] }[] }
+  | { type: 'RECOVER_HP' }
+  | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' };
