@@ -13,6 +13,7 @@ export interface Adventurer {
   maxHp: number;
   attack: number;
   defense: number;
+  upgradePoints: number;
   status: AdventurerStatus;
   position: [number, number, number];
   targetPosition: [number, number, number];
@@ -74,4 +75,5 @@ export type GameAction =
   | { type: 'RECOVER_HP' }
   | { type: 'HIRE_UPGRADE'; upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' }
   | { type: 'SELL_MATERIALS' }
-  | { type: 'ROOM_INCOME' };
+  | { type: 'ROOM_INCOME' }
+  | { type: 'SPEND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' };

@@ -76,6 +76,7 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
     maxHp,
     attack,
     defense,
+    upgradePoints: 0,
     status: 'entering',
     position: [...ENTRANCE_POS] as [number, number, number],
     targetPosition: targetPos,
@@ -132,7 +133,7 @@ function buildFreshState(): GameState {
 
 function ensureAdventurerStats(adv: Adventurer): Adventurer {
   if (adv.hp !== undefined && adv.maxHp !== undefined && adv.attack !== undefined && adv.defense !== undefined) {
-    return adv;
+    return { ...adv, upgradePoints: adv.upgradePoints ?? 0 };
   }
   const { maxHp, attack, defense } = getClassStats(adv.class, adv.level);
   return {
@@ -141,6 +142,7 @@ function ensureAdventurerStats(adv: Adventurer): Adventurer {
     maxHp: adv.maxHp ?? maxHp,
     attack: adv.attack ?? attack,
     defense: adv.defense ?? defense,
+    upgradePoints: adv.upgradePoints ?? 0,
   };
 }
 
@@ -314,7 +316,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           const powerIncrease = leveledUp ? (newLevel - adv.level) * POWER_PER_LEVEL : 0;
           if (leveledUp) {
             const { maxHp: newMaxHp, attack: newAttack, defense: newDefense } = getClassStats(adv.class, newLevel);
-            return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense };
+            return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense, upgradePoints: (adv.upgradePoints ?? 0) + 2 };
           }
           return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: newHp };
         });
@@ -328,7 +330,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           .filter(a => { const before = state.adventurers.find(b => b.id === a.id); return before && a.level > before.level; });
 
         let logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
-        if (levelUps.length > 0) logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}!`).join(' ')}`;
+        if (levelUps.length > 0) logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}! (2 upgrade points available)`).join(' ')}`;
 
         // Material drops: 40% per-quest chance to yield 1-2 random materials; only when basement is unlocked
         const newMaterials = { ...state.materials };
@@ -572,6 +574,28 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'SPEND_UPGRADE_POINT': {
+      if (state.gamePhase !== 'playing') return state;
+      const adv = state.adventurers.find(a => a.id === action.adventurerId);
+      if (!adv || (adv.upgradePoints ?? 0) <= 0) return state;
+      const statLabel = action.stat === 'hp' ? 'HP' : action.stat === 'attack' ? 'Attack' : 'Defense';
+      return {
+        ...state,
+        adventurers: state.adventurers.map(a => {
+          if (a.id !== action.adventurerId) return a;
+          const pts = (a.upgradePoints ?? 0) - 1;
+          if (action.stat === 'hp') {
+            return { ...a, upgradePoints: pts, maxHp: a.maxHp + 5, hp: Math.min(a.hp + 5, a.maxHp + 5) };
+          }
+          if (action.stat === 'attack') {
+            return { ...a, upgradePoints: pts, attack: a.attack + 1 };
+          }
+          return { ...a, upgradePoints: pts, defense: a.defense + 1 };
+        }),
+        gameLog: addLog(state.gameLog, `${adv.name} improved their ${statLabel}!`),
+      };
+    }
+
     default:
       return state;
   }
@@ -739,6 +763,10 @@ export function useGameState() {
     dispatch({ type: 'SELL_MATERIALS' });
   }, []);
 
+  const spendUpgradePoint = useCallback((adventurerId: string, stat: 'hp' | 'attack' | 'defense') => {
+    dispatch({ type: 'SPEND_UPGRADE_POINT', adventurerId, stat });
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -751,5 +779,6 @@ export function useGameState() {
     newGame,
     hireUpgrade,
     sellMaterials,
+    spendUpgradePoint,
   };
 }
