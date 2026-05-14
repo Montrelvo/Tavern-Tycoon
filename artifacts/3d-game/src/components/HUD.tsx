@@ -21,6 +21,7 @@ interface HUDProps {
   onDispatchQuest: (questId: string, adventurerIds: string[]) => void;
   onRefreshQuests: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
+  onNewGame: () => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -703,6 +704,7 @@ export function HUD({
   gold, adventurers, quests, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
+  onNewGame,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
@@ -711,6 +713,20 @@ export function HUD({
   const selectedAdv = selectedAdventurerId
     ? adventurers.find(a => a.id === selectedAdventurerId) ?? null
     : null;
+
+  const newGameButtonStyle: React.CSSProperties = {
+    marginTop: 24,
+    background: 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)',
+    border: '1px solid #a0631e',
+    borderRadius: 8,
+    color: '#e8d5a0',
+    fontFamily: 'serif',
+    fontWeight: 'bold',
+    fontSize: 16,
+    padding: '10px 32px',
+    cursor: 'pointer',
+    letterSpacing: 0.5,
+  };
 
   if (gamePhase === 'won') {
     return (
@@ -724,6 +740,7 @@ export function HUD({
           <h1 style={{ color: '#ffd700', fontSize: 40, margin: '0 0 12px' }}>Victory!</h1>
           <p style={{ color: '#e8d5a0', fontSize: 20 }}>Your tavern earned {gold} gold!</p>
           <p style={{ color: '#aaa', fontSize: 15, marginTop: 8 }}>Your adventurers are legends across the land.</p>
+          <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
         </div>
       </div>
     );
@@ -743,9 +760,7 @@ export function HUD({
           <p style={{ color: '#888', fontSize: 15, marginTop: 8 }}>
             Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> before falling silent.
           </p>
-          <p style={{ color: '#7a6a5a', fontSize: 13, marginTop: 16, fontStyle: 'italic' }}>
-            Reload the page to try again.
-          </p>
+          <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
         </div>
       </div>
     );
@@ -759,13 +774,31 @@ export function HUD({
         display: 'flex', justifyContent: 'center', padding: '10px 16px',
         pointerEvents: 'none',
       }}>
-        <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 300 }}>
+        <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 300, position: 'relative' }}>
           <GoldBar gold={gold} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888' }}>
             <span>Roster: {roster.length}/8</span>
             <span>Visitors: {wanderers.length}</span>
             <span>Active Quests: {activeQuests.length}</span>
           </div>
+          <button
+            onClick={onNewGame}
+            title="Wipe save and start a new game"
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              background: 'rgba(60,20,5,0.8)',
+              border: '1px solid #5c3315',
+              borderRadius: 5,
+              color: '#7a6a5a',
+              fontFamily: 'serif',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            New Game
+          </button>
         </div>
       </div>
 

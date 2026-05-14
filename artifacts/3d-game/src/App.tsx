@@ -54,6 +54,7 @@ export default function App() {
     dispatchQuest,
     refreshQuests,
     markAdventurerArrived,
+    newGame,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -132,6 +133,7 @@ export default function App() {
         onDispatchQuest={dispatchQuest}
         onRefreshQuests={refreshQuests}
         onPlaySound={playSound}
+        onNewGame={newGame}
       />
 
       {/* Title overlay */}

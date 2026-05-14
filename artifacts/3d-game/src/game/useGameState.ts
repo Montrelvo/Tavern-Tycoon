@@ -9,6 +9,8 @@ import {
 } from './constants';
 import { calculateEffectivePower } from './questUtils';
 
+const SAVE_KEY = 'tavern_save_v1';
+
 let adventurerCounter = 0;
 let questCounter = 0;
 const usedNames = new Set<string>();
@@ -66,17 +68,66 @@ function getLevelForXp(xp: number): number {
 }
 
 
-const initialQuests = generateQuests();
+function buildFreshState(): GameState {
+  return {
+    gold: 30,
+    adventurers: [],
+    quests: generateQuests(),
+    gameLog: ['Your tavern is open. Adventurers will arrive soon...'],
+    gamePhase: 'playing',
+    selectedAdventurerId: null,
+    showQuestBoard: false,
+  };
+}
 
-const initialState: GameState = {
-  gold: 30,
-  adventurers: [],
-  quests: initialQuests,
-  gameLog: ['Your tavern is open. Adventurers will arrive soon...'],
-  gamePhase: 'playing',
-  selectedAdventurerId: null,
-  showQuestBoard: false,
-};
+function syncCountersFromState(state: GameState) {
+  for (const adv of state.adventurers) {
+    const num = parseInt(adv.id.replace('adv-', ''), 10);
+    if (!isNaN(num) && num > adventurerCounter) adventurerCounter = num;
+    usedNames.add(adv.name);
+  }
+  for (const quest of state.quests) {
+    const num = parseInt(quest.id.replace('quest-', ''), 10);
+    if (!isNaN(num) && num > questCounter) questCounter = num;
+  }
+}
+
+function loadFromStorage(): GameState {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return buildFreshState();
+    const parsed = JSON.parse(raw) as GameState;
+    const persistedAdventurers = parsed.adventurers.filter(
+      a => a.status === 'recruited' || a.status === 'on-quest'
+    );
+    const restored: GameState = {
+      ...parsed,
+      adventurers: persistedAdventurers,
+      selectedAdventurerId: null,
+      showQuestBoard: false,
+    };
+    syncCountersFromState(restored);
+    return restored;
+  } catch {
+    return buildFreshState();
+  }
+}
+
+function saveToStorage(state: GameState) {
+  try {
+    const toSave: GameState = {
+      ...state,
+      adventurers: state.adventurers.filter(
+        a => a.status === 'recruited' || a.status === 'on-quest'
+      ),
+      selectedAdventurerId: null,
+      showQuestBoard: false,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(toSave));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function addLog(log: string[], message: string): string[] {
   return [message, ...log].slice(0, 20);
@@ -258,13 +309,21 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'NEW_GAME': {
+      return action.freshState;
+    }
+
     default:
       return state;
   }
 }
 
 export function useGameState() {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, undefined, loadFromStorage);
+
+  useEffect(() => {
+    saveToStorage(state);
+  }, [state]);
 
   // Spawn adventurers
   useEffect(() => {
@@ -357,6 +416,15 @@ export function useGameState() {
     dispatch({ type: 'REMOVE_ADVENTURER', id });
   }, []);
 
+  const newGame = useCallback(() => {
+    adventurerCounter = 0;
+    questCounter = 0;
+    usedNames.clear();
+    localStorage.removeItem(SAVE_KEY);
+    const freshState = buildFreshState();
+    dispatch({ type: 'NEW_GAME', freshState });
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -366,5 +434,6 @@ export function useGameState() {
     refreshQuests,
     markAdventurerArrived,
     removeAdventurer,
+    newGame,
   };
 }
