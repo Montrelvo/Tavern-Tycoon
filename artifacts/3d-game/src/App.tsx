@@ -120,6 +120,7 @@ export default function App() {
     newGame,
     hireUpgrade,
     sellMaterials,
+    spendUpgradePoint,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -204,6 +205,7 @@ export default function App() {
           onRefreshQuests={refreshQuests}
           onPlaySound={playSound}
           onNewGame={newGame}
+          onSpendUpgradePoint={spendUpgradePoint}
         />
       </div>
 

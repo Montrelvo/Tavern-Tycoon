@@ -23,6 +23,7 @@ interface HUDProps {
   onRefreshQuests: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
+  onSpendUpgradePoint: (adventurerId: string, stat: 'hp' | 'attack' | 'defense') => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -108,11 +109,12 @@ function GoldBar({ gold, roomsIncome }: { gold: number; roomsIncome: number }) {
   );
 }
 
-function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
+function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
   adv: Adventurer;
   isSelected: boolean;
   onSelect: () => void;
   onRecruit: (id: string) => void;
+  onAllocate?: () => void;
 }) {
   const color = CLASS_COLORS[adv.class];
   const elite = isElite(adv);
@@ -142,6 +144,18 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
         <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 13, flex: 1 }}>{adv.name}</span>
+        {(adv.upgradePoints ?? 0) > 0 && (
+          <span style={{
+            fontSize: 9, fontWeight: 'bold', color: '#1a0d00',
+            background: 'linear-gradient(135deg, #f1c40f, #e67e22)',
+            borderRadius: 8, padding: '1px 5px',
+            boxShadow: '0 0 6px #f1c40f88',
+            animation: 'pulse 1.5s ease-in-out infinite',
+            flexShrink: 0,
+          }}>
+            {adv.upgradePoints} pts
+          </span>
+        )}
         <LevelBadge level={adv.level} />
         <span style={{ color: '#aaa', fontSize: 10 }}>
           {adv.status === 'on-quest' ? 'On Quest' : adv.status === 'idle' ? 'Visitor' : 'Ready'}
@@ -197,6 +211,123 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit }: {
           Recruit (Free)
         </button>
       )}
+      {adv.status === 'recruited' && (adv.upgradePoints ?? 0) > 0 && onAllocate && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onAllocate(); }}
+          style={{
+            marginTop: 4,
+            background: 'linear-gradient(180deg, #c8960c 0%, #a07008 100%)',
+            border: '1px solid #f1c40f',
+            borderRadius: 4,
+            color: '#1a0d00',
+            fontWeight: 'bold',
+            fontSize: 11,
+            padding: '3px 10px',
+            cursor: 'pointer',
+            width: '100%',
+            fontFamily: 'serif',
+            boxShadow: '0 0 6px #f1c40f55',
+          }}
+        >
+          ✦ Allocate {adv.upgradePoints} Point{adv.upgradePoints !== 1 ? 's' : ''}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function StatAllocationPopup({ adv, onClose, onSpend }: {
+  adv: Adventurer;
+  onClose: () => void;
+  onSpend: (stat: 'hp' | 'attack' | 'defense') => void;
+}) {
+  const pts = adv.upgradePoints ?? 0;
+  const color = CLASS_COLORS[adv.class];
+
+  const statBtn = (
+    label: string,
+    stat: 'hp' | 'attack' | 'defense',
+    current: number,
+    next: number,
+    btnColor: string,
+  ) => (
+    <button
+      disabled={pts === 0}
+      onClick={() => onSpend(stat)}
+      style={{
+        background: pts === 0 ? '#2a1a08' : `rgba(${btnColor},0.15)`,
+        border: `1px solid ${pts === 0 ? '#3d2410' : `rgba(${btnColor},0.5)`}`,
+        borderRadius: 6,
+        color: pts === 0 ? '#555' : '#e8d5a0',
+        fontFamily: 'serif',
+        fontWeight: 'bold',
+        fontSize: 13,
+        padding: '8px 10px',
+        cursor: pts === 0 ? 'not-allowed' : 'pointer',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+        gap: 2,
+        transition: 'all 0.15s',
+      }}
+    >
+      <span style={{ fontSize: 11, color: pts === 0 ? '#444' : `rgb(${btnColor})` }}>{label}</span>
+      <span style={{ fontSize: 12 }}>
+        {current} → <span style={{ color: pts === 0 ? '#555' : '#2ecc71' }}>{next}</span>
+      </span>
+      <span style={{ fontSize: 10, color: '#666' }}>−1 pt</span>
+    </button>
+  );
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
+      pointerEvents: 'auto', zIndex: 150,
+    }}>
+      <div style={{
+        background: 'rgba(15,8,2,0.97)',
+        border: `2px solid ${color}`,
+        borderRadius: 12,
+        padding: '16px 18px',
+        minWidth: 280,
+        boxShadow: `0 0 24px ${color}44, 0 4px 16px rgba(0,0,0,0.9)`,
+        fontFamily: 'serif',
+        position: 'relative',
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 8, right: 10,
+            background: 'none', border: 'none', color: '#666', fontSize: 16, cursor: 'pointer',
+          }}
+        >✕</button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: color }} />
+          <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 16 }}>{adv.name}</span>
+          <span style={{ color: '#888', fontSize: 12 }}>{CLASS_LABELS[adv.class]}</span>
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginBottom: 12,
+        }}>
+          <span style={{
+            fontSize: 13,
+            color: pts > 0 ? '#f1c40f' : '#666',
+            fontWeight: 'bold',
+          }}>
+            {pts > 0 ? `✦ ${pts} upgrade point${pts !== 1 ? 's' : ''} to spend` : 'No points remaining'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          {statBtn('+5 Max HP', 'hp', adv.maxHp, adv.maxHp + 5, '231,76,60')}
+          {statBtn('+1 Attack', 'attack', adv.attack, adv.attack + 1, '230,126,34')}
+          {statBtn('+1 Defense', 'defense', adv.defense, adv.defense + 1, '52,152,219')}
+        </div>
+      </div>
     </div>
   );
 }
@@ -631,12 +762,13 @@ function CollapsibleHeader({ label, count, open, onToggle, color = '#e8d5a0' }: 
   );
 }
 
-function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit }: {
+function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit, onAllocate }: {
   roster: Adventurer[];
   wanderers: Adventurer[];
   selectedAdventurerId: string | null;
   onSelectAdventurer: (id: string | null) => void;
   onRecruit: (id: string) => void;
+  onAllocate: (id: string) => void;
 }) {
   const [partyOpen, setPartyOpen] = useState(true);
   const [visitorsOpen, setVisitorsOpen] = useState(true);
@@ -659,6 +791,7 @@ function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer
               isSelected={selectedAdventurerId === adv.id}
               onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
               onRecruit={onRecruit}
+              onAllocate={() => onAllocate(adv.id)}
             />
           ))}
         </div>
@@ -754,8 +887,9 @@ export function HUD({
   gold, adventurers, quests, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard, upgrades,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
-  onNewGame,
+  onNewGame, onSpendUpgradePoint,
 }: HUDProps) {
+  const [allocateId, setAllocateId] = useState<string | null>(null);
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
   const activeQuests = quests.filter(q => q.status === 'active');
@@ -763,6 +897,10 @@ export function HUD({
 
   const selectedAdv = selectedAdventurerId
     ? adventurers.find(a => a.id === selectedAdventurerId) ?? null
+    : null;
+
+  const allocateAdv = allocateId
+    ? adventurers.find(a => a.id === allocateId) ?? null
     : null;
 
   const newGameButtonStyle: React.CSSProperties = {
@@ -860,6 +998,7 @@ export function HUD({
         selectedAdventurerId={selectedAdventurerId}
         onSelectAdventurer={onSelectAdventurer}
         onRecruit={onRecruit}
+        onAllocate={(id) => { setAllocateId(id); onSelectAdventurer(null); }}
       />
 
       {/* Right panel */}
@@ -870,12 +1009,24 @@ export function HUD({
       />
 
       {/* Recruit popup */}
-      {selectedAdv && !showQuestBoard && (
+      {selectedAdv && !showQuestBoard && !allocateId && (
         <RecruitPopup
           adv={selectedAdv}
           onRecruit={onRecruit}
           onClose={() => onSelectAdventurer(null)}
           onPlaySound={onPlaySound}
+        />
+      )}
+
+      {/* Stat Allocation popup */}
+      {allocateAdv && !showQuestBoard && (
+        <StatAllocationPopup
+          adv={allocateAdv}
+          onClose={() => setAllocateId(null)}
+          onSpend={(stat) => {
+            onSpendUpgradePoint(allocateAdv.id, stat);
+            if ((allocateAdv.upgradePoints ?? 0) <= 1) setAllocateId(null);
+          }}
         />
       )}
 
