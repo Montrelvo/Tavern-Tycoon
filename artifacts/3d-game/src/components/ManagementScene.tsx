@@ -160,9 +160,24 @@ export function ManagementScene({ gold, upgrades, rosterCount, onHireUpgrade }: 
               padding: '2px 8px',
             }}>Coming Soon</span>
           </div>
-          <div style={{ color: '#4a3a28', fontSize: 12, lineHeight: 1.5 }}>
+          <div style={{ color: '#4a3a28', fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
             Construct inn rooms to house adventurers and earn passive gold income each minute.
-            Unlock the basement first.
+          </div>
+          {/* Room slot indicators — locked placeholders */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[1, 2, 3, 4, 5, 6].map(n => (
+              <div key={n} style={{
+                flex: 1,
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px dashed #2a1a08',
+                borderRadius: 5,
+                padding: '6px 4px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 14, marginBottom: 2, opacity: 0.3 }}>🔒</div>
+                <div style={{ color: '#2a1a08', fontSize: 9 }}>Room {n}</div>
+              </div>
+            ))}
           </div>
         </div>
 

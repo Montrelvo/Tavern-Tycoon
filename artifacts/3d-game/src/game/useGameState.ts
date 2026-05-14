@@ -8,6 +8,7 @@ import {
   SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
   XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
   WANDER_INTERVAL_MIN, WANDER_INTERVAL_MAX, HP_RECOVERY_INTERVAL,
+  ROSTER_CAPS,
 } from './constants';
 import { calculateEffectivePower } from './questUtils';
 
@@ -107,8 +108,7 @@ function getLevelForXp(xp: number): number {
 const DEFAULT_UPGRADES = { cook: 0 as const, bard: false, rosterSlots: 1 as const };
 
 function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
-  const caps = [5, 8, 12];
-  return caps[(upgrades.rosterSlots ?? 1) - 1];
+  return ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
 }
 
 function buildFreshState(): GameState {
