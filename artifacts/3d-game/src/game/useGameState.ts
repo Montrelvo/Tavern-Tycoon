@@ -315,7 +315,12 @@ function reducer(state: GameState, action: GameAction): GameState {
           const leveledUp = newLevel > adv.level;
           const powerIncrease = leveledUp ? (newLevel - adv.level) * POWER_PER_LEVEL : 0;
           if (leveledUp) {
-            const { maxHp: newMaxHp, attack: newAttack, defense: newDefense } = getClassStats(adv.class, newLevel);
+            // Apply only the per-level stat deltas to preserve any manual upgrade-point allocations
+            const oldClassStats = getClassStats(adv.class, adv.level);
+            const newClassStats = getClassStats(adv.class, newLevel);
+            const newMaxHp = adv.maxHp + (newClassStats.maxHp - oldClassStats.maxHp);
+            const newAttack = adv.attack + (newClassStats.attack - oldClassStats.attack);
+            const newDefense = adv.defense + (newClassStats.defense - oldClassStats.defense);
             return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense, upgradePoints: (adv.upgradePoints ?? 0) + 2 };
           }
           return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: newHp };
