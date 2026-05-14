@@ -321,7 +321,9 @@ function reducer(state: GameState, action: GameAction): GameState {
             const newMaxHp = adv.maxHp + (newClassStats.maxHp - oldClassStats.maxHp);
             const newAttack = adv.attack + (newClassStats.attack - oldClassStats.attack);
             const newDefense = adv.defense + (newClassStats.defense - oldClassStats.defense);
-            return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense, upgradePoints: (adv.upgradePoints ?? 0) + 2 };
+            const levelsGained = newLevel - adv.level;
+            const pointsGranted = levelsGained * 2;
+            return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense, upgradePoints: (adv.upgradePoints ?? 0) + pointsGranted };
           }
           return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: newHp };
         });
@@ -335,7 +337,14 @@ function reducer(state: GameState, action: GameAction): GameState {
           .filter(a => { const before = state.adventurers.find(b => b.id === a.id); return before && a.level > before.level; });
 
         let logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
-        if (levelUps.length > 0) logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}! (2 upgrade points available)`).join(' ')}`;
+        if (levelUps.length > 0) {
+          logMsg += ` ${levelUps.map(a => {
+            const before = state.adventurers.find(b => b.id === a.id);
+            const levelsGained = before ? a.level - before.level : 1;
+            const pts = levelsGained * 2;
+            return `${a.name} reached level ${a.level}! (${pts} upgrade point${pts !== 1 ? 's' : ''} available)`;
+          }).join(' ')}`;
+        }
 
         // Material drops: 40% per-quest chance to yield 1-2 random materials; only when basement is unlocked
         const newMaterials = { ...state.materials };
