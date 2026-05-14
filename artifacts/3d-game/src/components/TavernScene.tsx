@@ -147,6 +147,101 @@ function Tables() {
   );
 }
 
+function BarrelStack() {
+  return (
+    <group position={[-0.5, 0, -6.2]}>
+      {/* Bottom-left barrel */}
+      <mesh position={[-0.38, 0.3, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.28, 0.28, 0.6, 10]} />
+        <meshStandardMaterial color="#5c3315" roughness={0.9} />
+      </mesh>
+      <mesh position={[-0.38, 0.6, 0]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.06, 10]} />
+        <meshStandardMaterial color="#3a1f08" roughness={0.85} />
+      </mesh>
+      <mesh position={[-0.38, 0.0, 0]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.06, 10]} />
+        <meshStandardMaterial color="#3a1f08" roughness={0.85} />
+      </mesh>
+      {/* Bottom-right barrel */}
+      <mesh position={[0.38, 0.3, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.28, 0.28, 0.6, 10]} />
+        <meshStandardMaterial color="#6b4020" roughness={0.9} />
+      </mesh>
+      <mesh position={[0.38, 0.6, 0]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.06, 10]} />
+        <meshStandardMaterial color="#3a1f08" roughness={0.85} />
+      </mesh>
+      <mesh position={[0.38, 0.0, 0]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.06, 10]} />
+        <meshStandardMaterial color="#3a1f08" roughness={0.85} />
+      </mesh>
+      {/* Top barrel */}
+      <mesh position={[0, 0.88, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.28, 0.28, 0.6, 10]} />
+        <meshStandardMaterial color="#7a4a1e" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 1.18, 0]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.06, 10]} />
+        <meshStandardMaterial color="#3a1f08" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 0.58, 0]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.06, 10]} />
+        <meshStandardMaterial color="#3a1f08" roughness={0.85} />
+      </mesh>
+    </group>
+  );
+}
+
+function WallShield() {
+  return (
+    <group position={[0, 2.2, -6.8]} rotation={[Math.PI / 2, 0, 0]}>
+      {/* Shield backing — round disc facing outward from wall */}
+      <mesh castShadow>
+        <cylinderGeometry args={[0.55, 0.55, 0.06, 16]} />
+        <meshStandardMaterial color="#8B0000" roughness={0.7} metalness={0.1} />
+      </mesh>
+      {/* Horizontal bar of cross */}
+      <mesh position={[0, 0.04, 0]}>
+        <boxGeometry args={[0.7, 0.04, 0.1]} />
+        <meshStandardMaterial color="#c8a84b" roughness={0.5} metalness={0.4} />
+      </mesh>
+      {/* Vertical bar of cross */}
+      <mesh position={[0, 0.04, 0]}>
+        <boxGeometry args={[0.1, 0.04, 0.7]} />
+        <meshStandardMaterial color="#c8a84b" roughness={0.5} metalness={0.4} />
+      </mesh>
+      {/* Shield rim */}
+      <mesh position={[0, 0.04, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.52, 0.04, 8, 20]} />
+        <meshStandardMaterial color="#c8a84b" roughness={0.5} metalness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+function FloorRug() {
+  return (
+    <group>
+      {/* Main rug under seating area */}
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[1.2, 0.005, -0.25]}>
+        <planeGeometry args={[5.5, 4.5]} />
+        <meshStandardMaterial color="#6b2a2a" roughness={0.95} />
+      </mesh>
+      {/* Rug border */}
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[1.2, 0.004, -0.25]}>
+        <planeGeometry args={[6.1, 5.1]} />
+        <meshStandardMaterial color="#4a1a1a" roughness={0.95} />
+      </mesh>
+      {/* Inner rug pattern diamond */}
+      <mesh receiveShadow rotation={[-Math.PI / 2, Math.PI / 4, 0]} position={[1.2, 0.006, -0.25]}>
+        <planeGeometry args={[2.2, 2.2]} />
+        <meshStandardMaterial color="#8b3a3a" roughness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
 function WaitingArea() {
   return (
     <group>
@@ -468,6 +563,9 @@ export function TavernScene({
       <Tables />
       <WaitingArea />
       <QuestBoardMesh />
+      <BarrelStack />
+      <WallShield />
+      <FloorRug />
       <AnimatedCandles />
       <AnimatedFireplace />
       {adventurers.filter(adv => adv.status !== 'on-quest').map((adv) => (
