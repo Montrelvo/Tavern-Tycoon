@@ -195,7 +195,7 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate, onPr
             borderRadius: 8, padding: '1px 5px',
             flexShrink: 0,
           }}>
-            ✦
+            ★ Prestige
           </span>
         )}
         {(adv.upgradePoints ?? 0) > 0 && (
@@ -293,7 +293,7 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate, onPr
           </button>
         );
       })()}
-      {canPrestige && onPrestige && isSelected && (
+      {canPrestige && onPrestige && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrestige(); }}
           style={{
