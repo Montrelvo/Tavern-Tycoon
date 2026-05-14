@@ -195,16 +195,13 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'REMOVE_ADVENTURER': {
       const adv = state.adventurers.find(a => a.id === action.id);
       const newAdventurers = state.adventurers.filter(a => a.id !== action.id);
-      const hasRecruited = newAdventurers.some(a => a.status === 'recruited' || a.status === 'on-quest');
-      const isLost = adv?.status === 'on-quest';
-      const newPhase = (isLost || !hasRecruited && newAdventurers.length === 0) ? state.gamePhase : state.gamePhase;
       return {
         ...state,
         adventurers: newAdventurers,
         gameLog: adv && adv.status === 'idle'
           ? addLog(state.gameLog, `${adv.name} left without being recruited.`)
           : state.gameLog,
-        gamePhase: newPhase,
+        gamePhase: state.gamePhase,
       };
     }
 
@@ -289,16 +286,6 @@ export function useGameState() {
     }, delay + 100);
     return () => clearTimeout(timer);
   }, [state.adventurers, state.gamePhase]);
-
-  // Check lose condition
-  useEffect(() => {
-    if (state.gamePhase !== 'playing') return;
-    if (state.adventurers.length === 0) return;
-    const allRecruited = state.adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
-    if (allRecruited.length === 0 && state.adventurers.every(a => a.status === 'idle' || a.status === 'entering')) return;
-    const allOnQuest = state.adventurers.every(a => a.status === 'on-quest');
-    if (allOnQuest && state.quests.some(q => q.status === 'active')) return;
-  }, [state.adventurers, state.quests, state.gamePhase]);
 
   const recruitAdventurer = useCallback((id: string) => {
     const idx = state.adventurers.filter(a => a.status === 'recruited').length;

@@ -1,9 +1,10 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { Suspense, Component, type ReactNode } from 'react';
+import { Suspense, Component, type ReactNode, useEffect, useRef } from 'react';
 import { TavernScene } from './components/TavernScene';
 import { HUD } from './components/HUD';
 import { useGameState } from './game/useGameState';
+import { useTavernAmbience } from './game/useTavernAmbience';
 import './index.css';
 
 class WebGLErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
@@ -55,8 +56,33 @@ export default function App() {
     markAdventurerArrived,
   } = useGameState();
 
+  const { startAmbience, playSound } = useTavernAmbience();
+  const ambienceStarted = useRef(false);
+
+  const handleFirstInteraction = () => {
+    if (!ambienceStarted.current) {
+      ambienceStarted.current = true;
+      startAmbience();
+    }
+  };
+
+  // Trigger sound on quest resolution by watching the log
+  const prevLogRef = useRef<string[]>([]);
+  useEffect(() => {
+    const prev = prevLogRef.current;
+    const curr = state.gameLog;
+    if (curr !== prev && curr.length > 0 && prev.length > 0) {
+      const newest = curr[0];
+      if (newest.includes('succeeded')) playSound('questComplete');
+      else if (newest.includes('failed')) playSound('questFail');
+    }
+    prevLogRef.current = curr;
+  }, [state.gameLog, playSound]);
+
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#0d0700', overflow: 'hidden' }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#0d0700', overflow: 'hidden' }}
+      onClick={handleFirstInteraction}
+    >
       <WebGLErrorBoundary>
       <Suspense fallback={<LoadingScreen />}>
         <Canvas
@@ -105,6 +131,7 @@ export default function App() {
         onToggleQuestBoard={toggleQuestBoard}
         onDispatchQuest={dispatchQuest}
         onRefreshQuests={refreshQuests}
+        onPlaySound={playSound}
       />
 
       {/* Title overlay */}
