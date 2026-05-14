@@ -83,7 +83,12 @@ function reducer(state: GameState, action: GameAction): GameState {
         ...state,
         adventurers: state.adventurers.map(a =>
           a.id === action.id
-            ? { ...a, status: 'idle', position: action.position, targetPosition: action.position }
+            ? {
+                ...a,
+                status: a.status === 'entering' ? 'idle' : a.status,
+                position: action.position,
+                targetPosition: action.position,
+              }
             : a
         )
       };

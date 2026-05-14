@@ -232,7 +232,7 @@ export function TavernScene({
       <QuestBoardMesh />
       <Candles />
       <Fireplace />
-      {adventurers.map((adv) => (
+      {adventurers.filter(adv => adv.status !== 'on-quest').map((adv) => (
         <AdventurerMesh
           key={adv.id}
           adventurer={adv}
