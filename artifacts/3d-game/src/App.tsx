@@ -121,6 +121,7 @@ export default function App() {
     hireUpgrade,
     sellMaterials,
     spendUpgradePoint,
+    prestigeAdventurer,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -198,6 +199,8 @@ export default function App() {
           selectedAdventurerId={state.selectedAdventurerId}
           showQuestBoard={state.showQuestBoard}
           upgrades={state.upgrades}
+          questsCompleted={state.questsCompleted}
+          tavernPrestige={state.tavernPrestige}
           onRecruit={recruitAdventurer}
           onSelectAdventurer={selectAdventurer}
           onToggleQuestBoard={toggleQuestBoard}
@@ -206,6 +209,7 @@ export default function App() {
           onPlaySound={playSound}
           onNewGame={newGame}
           onSpendUpgradePoint={spendUpgradePoint}
+          onPrestigeAdventurer={prestigeAdventurer}
         />
       </div>
 
@@ -216,6 +220,7 @@ export default function App() {
           upgrades={state.upgrades}
           materials={state.materials}
           rosterCount={rosterCount}
+          tavernPrestige={state.tavernPrestige}
           onHireUpgrade={hireUpgrade}
           onSellMaterials={sellMaterials}
         />

@@ -3,12 +3,14 @@ import type { GameState, GameAction, Adventurer, Quest, Materials } from './type
 import type { AdventurerClass } from './types';
 import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
-  QUEST_POOL, WIN_GOLD, MAX_PARTY_SIZE, DISPATCH_COST,
+  QUEST_POOL, MAX_PARTY_SIZE, DISPATCH_COST,
   ENTRANCE_POS, WANDERING_POSITIONS, WAITING_POSITIONS,
   SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
   XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
   WANDER_INTERVAL_MIN, WANDER_INTERVAL_MAX, HP_RECOVERY_INTERVAL,
   ROSTER_CAPS,
+  TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
+  PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
 } from './constants';
 import { calculateEffectivePower } from './questUtils';
 
@@ -69,6 +71,7 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
     id: `adv-${++adventurerCounter}`,
     name: pickName(),
     class: cls,
+    prestigeClass: null,
     power: Math.floor(Math.random() * 8) + 3,
     xp: 0,
     level,
@@ -106,7 +109,16 @@ function getLevelForXp(xp: number): number {
 }
 
 
-const DEFAULT_UPGRADES = { cook: 0 as const, bard: false, rosterSlots: 1 as const, rooms: 0 as const, basement: false };
+const DEFAULT_UPGRADES = {
+  cook: 0 as const,
+  bard: false,
+  rosterSlots: 1 as const,
+  rooms: 0 as const,
+  basement: false,
+  trainingGrounds: false,
+  enchanter: false,
+  guildHall: false,
+};
 const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0 };
 const MATERIAL_TYPES: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
 const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12 };
@@ -128,12 +140,14 @@ function buildFreshState(): GameState {
     showQuestBoard: false,
     upgrades: { ...DEFAULT_UPGRADES },
     materials: { ...DEFAULT_MATERIALS },
+    questsCompleted: 0,
+    tavernPrestige: 0,
   };
 }
 
 function ensureAdventurerStats(adv: Adventurer): Adventurer {
   if (adv.hp !== undefined && adv.maxHp !== undefined && adv.attack !== undefined && adv.defense !== undefined) {
-    return { ...adv, upgradePoints: adv.upgradePoints ?? 0 };
+    return { ...adv, upgradePoints: adv.upgradePoints ?? 0, prestigeClass: adv.prestigeClass ?? null };
   }
   const { maxHp, attack, defense } = getClassStats(adv.class, adv.level);
   return {
@@ -143,6 +157,7 @@ function ensureAdventurerStats(adv: Adventurer): Adventurer {
     attack: adv.attack ?? attack,
     defense: adv.defense ?? defense,
     upgradePoints: adv.upgradePoints ?? 0,
+    prestigeClass: adv.prestigeClass ?? null,
   };
 }
 
@@ -172,6 +187,9 @@ function loadFromStorage(): GameState {
       rosterSlots: (parsed.upgrades?.rosterSlots ?? 1) as 1 | 2 | 3,
       rooms: (parsed.upgrades?.rooms ?? 0) as 0 | 1 | 2,
       basement: parsed.upgrades?.basement ?? false,
+      trainingGrounds: parsed.upgrades?.trainingGrounds ?? false,
+      enchanter: parsed.upgrades?.enchanter ?? false,
+      guildHall: parsed.upgrades?.guildHall ?? false,
     };
     const mergedMaterials: Materials = {
       ...DEFAULT_MATERIALS,
@@ -184,6 +202,9 @@ function loadFromStorage(): GameState {
       showQuestBoard: false,
       upgrades: mergedUpgrades,
       materials: mergedMaterials,
+      questsCompleted: parsed.questsCompleted ?? 0,
+      tavernPrestige: (parsed.tavernPrestige ?? 0) as 0 | 1 | 2 | 3,
+      gamePhase: parsed.gamePhase === 'won' ? 'playing' : parsed.gamePhase,
     };
     syncCountersFromState(restored);
     return restored;
@@ -270,13 +291,14 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'DISPATCH_QUEST': {
       const quest = state.quests.find(q => q.id === action.questId);
-      if (!quest || state.gold < DISPATCH_COST) return state;
+      const dispatchCost = state.upgrades.guildHall ? Math.floor(DISPATCH_COST / 2) : DISPATCH_COST;
+      if (!quest || state.gold < dispatchCost) return state;
       const assignedAdventurers = state.adventurers.filter(a => action.adventurerIds.includes(a.id));
       const effectivePower = calculateEffectivePower(assignedAdventurers, quest.questType);
       const success = effectivePower >= quest.powerRequired;
       return {
         ...state,
-        gold: state.gold - DISPATCH_COST,
+        gold: state.gold - dispatchCost,
         quests: state.quests.map(q =>
           q.id === action.questId
             ? { ...q, status: 'active', assignedAdventurerIds: action.adventurerIds, completesAt: Date.now() + quest.duration * 1000 }
@@ -306,7 +328,10 @@ function reducer(state: GameState, action: GameAction): GameState {
 
       if (action.success) {
         const baseXp = Math.ceil(quest.powerRequired * 1.2);
-        const xpGain = state.upgrades.bard ? Math.ceil(baseXp * 1.25) : baseXp;
+        let xpGain = baseXp;
+        if (state.upgrades.bard) xpGain = Math.ceil(xpGain * 1.25);
+        if (state.upgrades.trainingGrounds) xpGain = Math.ceil(xpGain * 1.5);
+
         let newAdventurers = state.adventurers.map(adv => {
           if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
           const newHp = Math.max(0, adv.hp - damagePerAdv);
@@ -315,7 +340,6 @@ function reducer(state: GameState, action: GameAction): GameState {
           const leveledUp = newLevel > adv.level;
           const powerIncrease = leveledUp ? (newLevel - adv.level) * POWER_PER_LEVEL : 0;
           if (leveledUp) {
-            // Apply only the per-level stat deltas to preserve any manual upgrade-point allocations
             const oldClassStats = getClassStats(adv.class, adv.level);
             const newClassStats = getClassStats(adv.class, newLevel);
             const newMaxHp = adv.maxHp + (newClassStats.maxHp - oldClassStats.maxHp);
@@ -346,7 +370,6 @@ function reducer(state: GameState, action: GameAction): GameState {
           }).join(' ')}`;
         }
 
-        // Material drops: 40% per-quest chance to yield 1-2 random materials; only when basement is unlocked
         const newMaterials = { ...state.materials };
         let finalLog = addLog(state.gameLog, logMsg);
         deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
@@ -365,9 +388,21 @@ function reducer(state: GameState, action: GameAction): GameState {
         }
 
         const newGold = state.gold + quest.reward;
+        const newQuestsCompleted = state.questsCompleted + 1;
+
+        let newPrestige: 0 | 1 | 2 | 3 = state.tavernPrestige;
+        for (let i = TAVERN_PRESTIGE_THRESHOLDS.length - 1; i >= 0; i--) {
+          if (newQuestsCompleted >= TAVERN_PRESTIGE_THRESHOLDS[i]) {
+            newPrestige = (i + 1) as 0 | 1 | 2 | 3;
+            break;
+          }
+        }
+        if (newPrestige > state.tavernPrestige) {
+          finalLog = addLog(finalLog, `🏛 Your tavern earns the title "${TAVERN_PRESTIGE_NAMES[newPrestige - 1]}"! New upgrades unlocked in the Manage tab.`);
+        }
+
         const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
-        let newPhase: GameState['gamePhase'] = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
-        if (newPhase === 'playing' && remainingRoster.length === 0) newPhase = 'lost';
+        const newPhase: GameState['gamePhase'] = remainingRoster.length === 0 ? 'lost' : state.gamePhase;
 
         return {
           ...state,
@@ -377,6 +412,8 @@ function reducer(state: GameState, action: GameAction): GameState {
           quests: state.quests.map(q => q.id === action.questId ? { ...q, status: 'completed' } : q),
           gamePhase: newPhase,
           gameLog: finalLog,
+          questsCompleted: newQuestsCompleted,
+          tavernPrestige: newPrestige,
         };
       } else {
         let newAdventurers = state.adventurers.map(adv => {
@@ -398,8 +435,7 @@ function reducer(state: GameState, action: GameAction): GameState {
         deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
 
         const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
-        let newPhase: GameState['gamePhase'] = state.gamePhase;
-        if (newPhase === 'playing' && remainingRoster.length === 0) newPhase = 'lost';
+        const newPhase: GameState['gamePhase'] = remainingRoster.length === 0 ? 'lost' : state.gamePhase;
 
         return {
           ...state,
@@ -552,6 +588,33 @@ function reducer(state: GameState, action: GameAction): GameState {
           gameLog: addLog(state.gameLog, 'Basement excavated! Quests now yield crafting materials.'),
         };
       }
+      if (upgrade === 'training_grounds') {
+        if (state.upgrades.trainingGrounds || state.gold < 120 || state.tavernPrestige < 1) return state;
+        return {
+          ...state,
+          gold: state.gold - 120,
+          upgrades: { ...state.upgrades, trainingGrounds: true },
+          gameLog: addLog(state.gameLog, 'Training Grounds established! Quest XP gains increased by 50%.'),
+        };
+      }
+      if (upgrade === 'enchanter') {
+        if (state.upgrades.enchanter || state.gold < 200 || state.tavernPrestige < 2) return state;
+        return {
+          ...state,
+          gold: state.gold - 200,
+          upgrades: { ...state.upgrades, enchanter: true },
+          gameLog: addLog(state.gameLog, "Enchanter's Study opened! Materials now sell for double value."),
+        };
+      }
+      if (upgrade === 'guild_hall') {
+        if (state.upgrades.guildHall || state.gold < 350 || state.tavernPrestige < 3) return state;
+        return {
+          ...state,
+          gold: state.gold - 350,
+          upgrades: { ...state.upgrades, guildHall: true },
+          gameLog: addLog(state.gameLog, 'Guild Hall established! Quest dispatch cost is halved.'),
+        };
+      }
       return state;
     }
 
@@ -560,11 +623,9 @@ function reducer(state: GameState, action: GameAction): GameState {
       const rooms = state.upgrades.rooms ?? 0;
       if (rooms === 0) return state;
       const income = rooms * 3 * 2;
-      const newGoldRoom = state.gold + income;
       return {
         ...state,
-        gold: newGoldRoom,
-        gamePhase: newGoldRoom >= WIN_GOLD ? 'won' : state.gamePhase,
+        gold: state.gold + income,
         gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold this minute.`),
       };
     }
@@ -572,17 +633,18 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'SELL_MATERIALS': {
       if (state.gamePhase !== 'playing') return state;
       const { herbs, ore, relics } = state.materials;
-      const total = herbs * MATERIAL_SELL_RATES.herbs + ore * MATERIAL_SELL_RATES.ore + relics * MATERIAL_SELL_RATES.relics;
+      const sellRates = state.upgrades.enchanter
+        ? { herbs: 6, ore: 12, relics: 24 }
+        : MATERIAL_SELL_RATES;
+      const total = herbs * sellRates.herbs + ore * sellRates.ore + relics * sellRates.relics;
       if (total === 0) return state;
       const parts: string[] = [];
       if (herbs > 0) parts.push(`${herbs} Herb${herbs > 1 ? 's' : ''}`);
       if (ore > 0) parts.push(`${ore} Ore`);
       if (relics > 0) parts.push(`${relics} Relic${relics > 1 ? 's' : ''}`);
-      const newGoldSell = state.gold + total;
       return {
         ...state,
-        gold: newGoldSell,
-        gamePhase: newGoldSell >= WIN_GOLD ? 'won' : state.gamePhase,
+        gold: state.gold + total,
         materials: { herbs: 0, ore: 0, relics: 0 },
         gameLog: addLog(state.gameLog, `Sold ${parts.join(', ')} for ${total} gold!`),
       };
@@ -607,6 +669,21 @@ function reducer(state: GameState, action: GameAction): GameState {
           return { ...a, upgradePoints: pts, defense: a.defense + 1 };
         }),
         gameLog: addLog(state.gameLog, `${adv.name} improved their ${statLabel}!`),
+      };
+    }
+
+    case 'PRESTIGE_ADVENTURER': {
+      if (state.gamePhase !== 'playing') return state;
+      const adv = state.adventurers.find(a => a.id === action.id);
+      if (!adv || adv.level < MAX_LEVEL || adv.prestigeClass !== null || state.gold < PRESTIGE_ADVENTURER_COST) return state;
+      const prestigeClass = PRESTIGE_CLASS_FOR[adv.class];
+      return {
+        ...state,
+        gold: state.gold - PRESTIGE_ADVENTURER_COST,
+        adventurers: state.adventurers.map(a =>
+          a.id === action.id ? { ...a, prestigeClass } : a
+        ),
+        gameLog: addLog(state.gameLog, `${adv.name} has ascended — now a legendary ${PRESTIGE_CLASS_LABELS[prestigeClass]}!`),
       };
     }
 
@@ -655,7 +732,6 @@ export function useGameState() {
         const effectivePower = calculateEffectivePower(assignedAdventurers, quest.questType);
         const success = effectivePower >= quest.powerRequired;
         dispatch({ type: 'QUEST_RESOLVED', questId: quest.id, success });
-        // Always return surviving adventurers (dead ones are already removed by QUEST_RESOLVED)
         const returnPositions: [number, number, number][] = quest.assignedAdventurerIds.map(
           (_, i) => WAITING_POSITIONS[i % WAITING_POSITIONS.length]
         );
@@ -685,7 +761,7 @@ export function useGameState() {
     return () => clearTimeout(timer);
   }, [state.adventurers, state.gamePhase]);
 
-  // Wandering behavior — continuously reassign waypoints to idle/recruited adventurers
+  // Wandering behavior
   useEffect(() => {
     if (state.gamePhase !== 'playing') return;
     let timer: ReturnType<typeof setTimeout>;
@@ -712,7 +788,7 @@ export function useGameState() {
     return () => clearTimeout(timer);
   }, [state.gamePhase]);
 
-  // HP recovery — 1 HP every 10 seconds for in-tavern adventurers
+  // HP recovery
   useEffect(() => {
     if (state.gamePhase !== 'playing') return;
     const timer = setInterval(() => {
@@ -721,7 +797,7 @@ export function useGameState() {
     return () => clearInterval(timer);
   }, [state.gamePhase]);
 
-  // Room income — every 60s while rooms are built
+  // Room income
   useEffect(() => {
     if (state.gamePhase !== 'playing' || (state.upgrades.rooms ?? 0) === 0) return;
     const timer = setInterval(() => {
@@ -769,7 +845,7 @@ export function useGameState() {
     dispatch({ type: 'NEW_GAME', freshState });
   }, []);
 
-  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement') => {
+  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => {
     dispatch({ type: 'HIRE_UPGRADE', upgrade });
   }, []);
 
@@ -779,6 +855,10 @@ export function useGameState() {
 
   const spendUpgradePoint = useCallback((adventurerId: string, stat: 'hp' | 'attack' | 'defense') => {
     dispatch({ type: 'SPEND_UPGRADE_POINT', adventurerId, stat });
+  }, []);
+
+  const prestigeAdventurer = useCallback((id: string) => {
+    dispatch({ type: 'PRESTIGE_ADVENTURER', id });
   }, []);
 
   return {
@@ -794,5 +874,6 @@ export function useGameState() {
     hireUpgrade,
     sellMaterials,
     spendUpgradePoint,
+    prestigeAdventurer,
   };
 }

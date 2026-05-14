@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import type { Adventurer, Quest, Upgrades } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
-  WIN_GOLD, DISPATCH_COST, ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
+  DISPATCH_COST, ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
   QUEST_TYPE_LABELS, QUEST_TYPE_COLORS, CLASS_STAT_COLORS, ROSTER_CAPS,
+  PRESTIGE_CLASS_LABELS, PRESTIGE_CLASS_COLORS, PRESTIGE_CLASS_PASSIVE_LABELS,
+  PRESTIGE_CLASS_FOR, TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
+  PRESTIGE_ADVENTURER_COST,
 } from '../game/constants';
 import { getAdventurerBonus } from '../game/questUtils';
 
@@ -12,10 +15,12 @@ interface HUDProps {
   adventurers: Adventurer[];
   quests: Quest[];
   gameLog: string[];
-  gamePhase: 'playing' | 'won' | 'lost';
+  gamePhase: 'playing' | 'lost';
   selectedAdventurerId: string | null;
   showQuestBoard: boolean;
   upgrades: Upgrades;
+  questsCompleted: number;
+  tavernPrestige: 0 | 1 | 2 | 3;
   onRecruit: (id: string) => void;
   onSelectAdventurer: (id: string | null) => void;
   onToggleQuestBoard: () => void;
@@ -24,6 +29,7 @@ interface HUDProps {
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
   onSpendUpgradePoint: (adventurerId: string, stat: 'hp' | 'attack' | 'defense') => void;
+  onPrestigeAdventurer: (id: string) => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -40,7 +46,9 @@ function isElite(adv: Adventurer) {
 
 function XpBar({ adv }: { adv: Adventurer }) {
   if (adv.level >= MAX_LEVEL) {
-    return <span style={{ color: '#ffd700', fontSize: 10, fontStyle: 'italic' }}>Max Level</span>;
+    return <span style={{ color: adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : '#ffd700', fontSize: 10, fontStyle: 'italic' }}>
+      {adv.prestigeClass ? `✦ ${PRESTIGE_CLASS_LABELS[adv.prestigeClass]}` : 'Max Level'}
+    </span>;
   }
   const nextThreshold = XP_THRESHOLDS[adv.level];
   const prevThreshold = XP_THRESHOLDS[adv.level - 1];
@@ -61,69 +69,105 @@ function XpBar({ adv }: { adv: Adventurer }) {
   );
 }
 
-function LevelBadge({ level }: { level: number }) {
-  const elite = level >= ELITE_LEVEL;
+function LevelBadge({ adv }: { adv: Adventurer }) {
+  const elite = adv.level >= ELITE_LEVEL;
+  const prestiged = !!adv.prestigeClass;
+  const bgColor = prestiged
+    ? `linear-gradient(135deg, ${PRESTIGE_CLASS_COLORS[adv.prestigeClass!]}, ${PRESTIGE_CLASS_COLORS[adv.prestigeClass!]}88)`
+    : elite
+    ? 'linear-gradient(135deg, #f1c40f, #e67e22)'
+    : 'rgba(255,255,255,0.1)';
   return (
     <span style={{
       fontSize: 10,
       fontWeight: 'bold',
       padding: '1px 5px',
       borderRadius: 3,
-      background: elite ? 'linear-gradient(135deg, #f1c40f, #e67e22)' : 'rgba(255,255,255,0.1)',
-      color: elite ? '#1a0d00' : '#aaa',
-      border: elite ? '1px solid #f1c40f' : '1px solid #444',
+      background: bgColor,
+      color: (elite || prestiged) ? '#1a0d00' : '#aaa',
+      border: prestiged
+        ? `1px solid ${PRESTIGE_CLASS_COLORS[adv.prestigeClass!]}`
+        : elite ? '1px solid #f1c40f' : '1px solid #444',
       flexShrink: 0,
     }}>
-      {elite ? '★' : ''}Lv{level}
+      {prestiged ? '✦' : elite ? '★' : ''}Lv{adv.level}
     </span>
   );
 }
 
-function GoldBar({ gold, roomsIncome }: { gold: number; roomsIncome: number }) {
-  const pct = Math.min(100, (gold / WIN_GOLD) * 100);
+function TopBarInfo({ gold, roomsIncome, questsCompleted, tavernPrestige }: {
+  gold: number; roomsIncome: number; questsCompleted: number; tavernPrestige: 0 | 1 | 2 | 3;
+}) {
+  const nextThreshold = TAVERN_PRESTIGE_THRESHOLDS[tavernPrestige];
+  const prevThreshold = tavernPrestige > 0 ? TAVERN_PRESTIGE_THRESHOLDS[tavernPrestige - 1] : 0;
+  const atMax = tavernPrestige === 3;
+  const pct = atMax
+    ? 100
+    : Math.min(100, ((questsCompleted - prevThreshold) / (nextThreshold - prevThreshold)) * 100);
+  const tierLabel = tavernPrestige === 0 ? null : TAVERN_PRESTIGE_NAMES[tavernPrestige - 1];
+
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ color: '#ffd700', fontWeight: 'bold', fontSize: 18, textShadow: '0 1px 4px #000' }}>
             {gold} Gold
           </span>
           {roomsIncome > 0 && (
             <span style={{ color: '#2ecc71', fontSize: 11, fontStyle: 'italic' }}>
-              +{roomsIncome}/min from rooms
+              +{roomsIncome}/min
             </span>
           )}
         </div>
-        <span style={{ color: '#aaa', fontSize: 12 }}>Goal: {WIN_GOLD}g</span>
+        <span style={{ color: tavernPrestige > 0 ? '#f1c40f' : '#4a3a28', fontSize: 11, fontWeight: tavernPrestige > 0 ? 'bold' : 'normal' }}>
+          {tierLabel ? `★ ${tierLabel}` : 'Unknown Tavern'}
+        </span>
       </div>
-      <div style={{ background: '#2a1a08', borderRadius: 4, height: 8, border: '1px solid #5c3315' }}>
-        <div style={{
-          background: 'linear-gradient(90deg, #c8960c, #ffd700)',
-          width: `${pct}%`,
-          height: '100%',
-          borderRadius: 4,
-          transition: 'width 0.5s ease',
-        }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: '#3a2a18', fontSize: 9, whiteSpace: 'nowrap' }}>Prestige</span>
+        <div style={{ background: '#2a1a08', borderRadius: 3, height: 4, flex: 1, border: '1px solid #3d2410' }}>
+          <div style={{
+            background: atMax
+              ? 'linear-gradient(90deg, #f1c40f, #e67e22)'
+              : tavernPrestige > 0
+              ? 'linear-gradient(90deg, #8a5422, #c8960c)'
+              : 'linear-gradient(90deg, #3d2410, #5c3315)',
+            width: `${pct}%`,
+            height: '100%',
+            borderRadius: 3,
+            transition: 'width 0.5s ease',
+          }} />
+        </div>
+        <span style={{ color: '#3a2a18', fontSize: 9, whiteSpace: 'nowrap' }}>
+          {atMax ? 'MAX' : `${questsCompleted}/${nextThreshold}`}
+        </span>
       </div>
     </div>
   );
 }
 
-function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
+function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate, onPrestige }: {
   adv: Adventurer;
   isSelected: boolean;
   onSelect: () => void;
   onRecruit: (id: string) => void;
   onAllocate?: () => void;
+  onPrestige?: () => void;
 }) {
-  const color = CLASS_COLORS[adv.class];
+  const baseColor = CLASS_COLORS[adv.class];
+  const prestigeColor = adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : null;
+  const color = prestigeColor ?? baseColor;
   const elite = isElite(adv);
+  const isPrestiged = !!adv.prestigeClass;
+  const canPrestige = adv.status === 'recruited' && adv.level >= MAX_LEVEL && !adv.prestigeClass;
 
-  const eliteBorder = elite
-    ? `1px solid #f1c40f`
+  const eliteBorder = (elite || isPrestiged)
+    ? `1px solid ${isPrestiged ? color : '#f1c40f'}`
     : `1px solid ${isSelected ? color : '#5c3315'}`;
 
-  const eliteGlow = elite
+  const eliteGlow = isPrestiged
+    ? `0 0 8px ${color}66, 0 0 2px ${color}44`
+    : elite
     ? `0 0 8px #f1c40f66, 0 0 2px #f1c40f44`
     : isSelected ? `0 0 4px ${color}44` : 'none';
 
@@ -131,7 +175,7 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
     <div
       onClick={onSelect}
       style={{
-        background: isSelected ? 'rgba(255,255,255,0.12)' : elite ? 'rgba(241,196,15,0.06)' : 'rgba(255,255,255,0.05)',
+        background: isSelected ? 'rgba(255,255,255,0.12)' : isPrestiged ? `${color}0d` : elite ? 'rgba(241,196,15,0.06)' : 'rgba(255,255,255,0.05)',
         border: eliteBorder,
         borderRadius: 6,
         padding: '6px 8px',
@@ -144,6 +188,16 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
         <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 13, flex: 1 }}>{adv.name}</span>
+        {isPrestiged && (
+          <span style={{
+            fontSize: 9, fontWeight: 'bold', color: '#000',
+            background: `linear-gradient(135deg, ${color}, ${color}99)`,
+            borderRadius: 8, padding: '1px 5px',
+            flexShrink: 0,
+          }}>
+            ✦
+          </span>
+        )}
         {(adv.upgradePoints ?? 0) > 0 && (
           <span style={{
             fontSize: 9, fontWeight: 'bold', color: '#1a0d00',
@@ -156,13 +210,15 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
             {adv.upgradePoints} pts
           </span>
         )}
-        <LevelBadge level={adv.level} />
+        <LevelBadge adv={adv} />
         <span style={{ color: '#aaa', fontSize: 10 }}>
           {adv.status === 'on-quest' ? 'On Quest' : adv.status === 'idle' ? 'Visitor' : 'Ready'}
         </span>
       </div>
       <div style={{ marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ color: '#aaa', fontSize: 11 }}>{CLASS_LABELS[adv.class]}</span>
+        <span style={{ color: isPrestiged ? color : '#aaa', fontSize: 11 }}>
+          {isPrestiged ? PRESTIGE_CLASS_LABELS[adv.prestigeClass!] : CLASS_LABELS[adv.class]}
+        </span>
         <span style={{ color: '#f1c40f', fontSize: 11 }}>⚡ {adv.power}</span>
         {adv.attack !== undefined && (
           <span style={{ color: CLASS_STAT_COLORS.attack, fontSize: 11 }}>⚔ {adv.attack}</span>
@@ -237,6 +293,27 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
           </button>
         );
       })()}
+      {canPrestige && onPrestige && isSelected && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onPrestige(); }}
+          style={{
+            marginTop: 4,
+            background: 'linear-gradient(180deg, #6c3483 0%, #4a235a 100%)',
+            border: '1px solid #8e44ad',
+            borderRadius: 4,
+            color: '#e8d5a0',
+            fontWeight: 'bold',
+            fontSize: 11,
+            padding: '3px 10px',
+            cursor: 'pointer',
+            width: '100%',
+            fontFamily: 'serif',
+            boxShadow: '0 0 6px #8e44ad55',
+          }}
+        >
+          ✦ Prestige (−{PRESTIGE_ADVENTURER_COST}g)
+        </button>
+      )}
     </div>
   );
 }
@@ -247,7 +324,7 @@ function StatAllocationPopup({ adv, onClose, onSpend }: {
   onSpend: (stat: 'hp' | 'attack' | 'defense') => void;
 }) {
   const pts = adv.upgradePoints ?? 0;
-  const color = CLASS_COLORS[adv.class];
+  const color = adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : CLASS_COLORS[adv.class];
 
   const statBtn = (
     label: string,
@@ -311,7 +388,9 @@ function StatAllocationPopup({ adv, onClose, onSpend }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <div style={{ width: 12, height: 12, borderRadius: 3, background: color }} />
           <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 16 }}>{adv.name}</span>
-          <span style={{ color: '#888', fontSize: 12 }}>{CLASS_LABELS[adv.class]}</span>
+          <span style={{ color: '#888', fontSize: 12 }}>
+            {adv.prestigeClass ? PRESTIGE_CLASS_LABELS[adv.prestigeClass] : CLASS_LABELS[adv.class]}
+          </span>
         </div>
 
         <div style={{
@@ -337,15 +416,110 @@ function StatAllocationPopup({ adv, onClose, onSpend }: {
   );
 }
 
+function PrestigeConfirmPopup({ adv, gold, onConfirm, onClose }: {
+  adv: Adventurer;
+  gold: number;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const prestigeClass = PRESTIGE_CLASS_FOR[adv.class];
+  const color = PRESTIGE_CLASS_COLORS[prestigeClass];
+  const canAfford = gold >= PRESTIGE_ADVENTURER_COST;
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
+      pointerEvents: 'auto', zIndex: 150,
+    }}>
+      <div style={{
+        background: 'rgba(15,8,2,0.97)',
+        border: `2px solid ${color}`,
+        borderRadius: 12,
+        padding: '16px 18px',
+        minWidth: 280,
+        boxShadow: `0 0 24px ${color}44, 0 4px 16px rgba(0,0,0,0.9)`,
+        fontFamily: 'serif',
+        position: 'relative',
+        textAlign: 'center',
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 8, right: 10,
+            background: 'none', border: 'none', color: '#666', fontSize: 16, cursor: 'pointer',
+          }}
+        >✕</button>
+
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
+          Prestige Ascension
+        </div>
+        <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 15, marginBottom: 4 }}>
+          {adv.name}
+        </div>
+        <div style={{ color: '#888', fontSize: 12, marginBottom: 10 }}>
+          {CLASS_LABELS[adv.class]} →{' '}
+          <span style={{ color, fontWeight: 'bold' }}>{PRESTIGE_CLASS_LABELS[prestigeClass]}</span>
+        </div>
+        <div style={{
+          background: `${color}11`, border: `1px solid ${color}44`,
+          borderRadius: 6, padding: '8px 10px', marginBottom: 12, fontSize: 12,
+        }}>
+          <div style={{ color: '#888', fontSize: 10, marginBottom: 3 }}>New Class Ability</div>
+          <div style={{ color }}>{PRESTIGE_CLASS_PASSIVE_LABELS[prestigeClass]}</div>
+        </div>
+        <div style={{ color: canAfford ? '#f1c40f' : '#e74c3c', fontSize: 13, marginBottom: 12 }}>
+          Cost: {PRESTIGE_ADVENTURER_COST}g{!canAfford ? ' (not enough gold)' : ''}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, background: '#2a1a08', border: '1px solid #5c3315',
+              borderRadius: 6, color: '#888', fontFamily: 'serif',
+              fontSize: 13, padding: '7px 0', cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!canAfford}
+            onClick={() => { if (canAfford) { onConfirm(); onClose(); } }}
+            style={{
+              flex: 1,
+              background: canAfford
+                ? `linear-gradient(180deg, ${color}cc 0%, ${color}88 100%)`
+                : '#2a1a08',
+              border: `1px solid ${canAfford ? color : '#3d2410'}`,
+              borderRadius: 6,
+              color: canAfford ? '#fff' : '#555',
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              fontSize: 13,
+              padding: '7px 0',
+              cursor: canAfford ? 'pointer' : 'not-allowed',
+              textShadow: canAfford ? '0 1px 3px rgba(0,0,0,0.6)' : 'none',
+            }}
+          >
+            Ascend ✦
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
   adv: Adventurer;
   onRecruit: (id: string) => void;
   onClose: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
 }) {
-  const color = CLASS_COLORS[adv.class];
+  const baseColor = CLASS_COLORS[adv.class];
+  const prestigeColor = adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : null;
+  const color = prestigeColor ?? baseColor;
   const isRecruited = adv.status === 'recruited';
   const elite = isElite(adv);
+  const isPrestiged = !!adv.prestigeClass;
   const nextThreshold = adv.level < MAX_LEVEL ? XP_THRESHOLDS[adv.level] : null;
   const prevThreshold = XP_THRESHOLDS[adv.level - 1];
   const xpPct = nextThreshold !== null
@@ -359,11 +533,13 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
     }}>
       <div style={{
         background: 'rgba(15,8,2,0.96)',
-        border: `2px solid ${elite ? '#f1c40f' : color}`,
+        border: `2px solid ${isPrestiged ? color : elite ? '#f1c40f' : color}`,
         borderRadius: 12,
         padding: '16px 20px',
         minWidth: 260,
-        boxShadow: elite
+        boxShadow: isPrestiged
+          ? `0 0 24px ${color}66, 0 0 8px ${color}44, 0 4px 16px rgba(0,0,0,0.8)`
+          : elite
           ? `0 0 24px #f1c40f66, 0 0 8px #f1c40f44, 0 4px 16px rgba(0,0,0,0.8)`
           : `0 0 24px ${color}44, 0 4px 16px rgba(0,0,0,0.8)`,
         fontFamily: 'serif',
@@ -378,7 +554,16 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
           }}
         >✕</button>
 
-        {elite && (
+        {isPrestiged && (
+          <div style={{
+            fontSize: 10, fontWeight: 'bold', color: '#000',
+            background: `linear-gradient(90deg, ${color}, ${color}88)`,
+            borderRadius: 8, padding: '2px 8px', marginBottom: 8, display: 'inline-block',
+          }}>
+            ✦ PRESTIGE — {PRESTIGE_CLASS_LABELS[adv.prestigeClass!].toUpperCase()}
+          </div>
+        )}
+        {!isPrestiged && elite && (
           <div style={{
             fontSize: 10, fontWeight: 'bold', color: '#1a0d00',
             background: 'linear-gradient(90deg, #f1c40f, #e67e22)',
@@ -392,17 +577,17 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
           <div style={{ width: 14, height: 14, borderRadius: 3, background: color }} />
           <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 17 }}>{adv.name}</span>
         </div>
-        <div style={{ color: '#b0a090', fontSize: 13, marginBottom: 4 }}>
-          {CLASS_LABELS[adv.class]}
+        <div style={{ color: isPrestiged ? color : '#b0a090', fontSize: 13, marginBottom: 4 }}>
+          {isPrestiged ? PRESTIGE_CLASS_LABELS[adv.prestigeClass!] : CLASS_LABELS[adv.class]}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
           <div style={{ color: '#f1c40f', fontSize: 14 }}>⚡ Power: {adv.power}</div>
           <div style={{
             fontSize: 12, fontWeight: 'bold',
-            color: elite ? '#f1c40f' : '#aaa',
+            color: isPrestiged ? color : elite ? '#f1c40f' : '#aaa',
           }}>
-            {elite ? '★' : ''}Lv {adv.level}
+            {isPrestiged ? '✦' : elite ? '★' : ''}Lv {adv.level}
           </div>
         </div>
 
@@ -432,7 +617,11 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
           fontSize: 12,
         }}>
           <div style={{ color: '#888', fontSize: 10, marginBottom: 2 }}>Class Ability</div>
-          <div style={{ color: color }}>{CLASS_PASSIVE_LABELS[adv.class]}</div>
+          <div style={{ color }}>
+            {isPrestiged
+              ? PRESTIGE_CLASS_PASSIVE_LABELS[adv.prestigeClass!]
+              : CLASS_PASSIVE_LABELS[adv.class]}
+          </div>
         </div>
 
         <div style={{ marginBottom: 12 }}>
@@ -455,7 +644,9 @@ function RecruitPopup({ adv, onRecruit, onClose, onPlaySound }: {
               </div>
             </>
           ) : (
-            <div style={{ color: '#ffd700', fontSize: 12, fontStyle: 'italic' }}>Maximum level reached!</div>
+            <div style={{ color: isPrestiged ? color : '#ffd700', fontSize: 12, fontStyle: 'italic' }}>
+              {isPrestiged ? `✦ ${PRESTIGE_CLASS_LABELS[adv.prestigeClass!]}` : 'Maximum level reached!'}
+            </div>
           )}
         </div>
 
@@ -605,7 +796,7 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
           <div style={{ color: '#b0a090', fontSize: 11, marginBottom: 4 }}>Select adventurers to send:</div>
           {availableAdventurers.map(adv => {
             const checked = selectedIds.has(adv.id);
-            const color = CLASS_COLORS[adv.class];
+            const color = adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : CLASS_COLORS[adv.class];
             const effPower = getEffectivePower(adv);
             const hasBonus = effPower > adv.power;
             const elite = isElite(adv);
@@ -615,10 +806,10 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '4px 6px', borderRadius: 4, marginBottom: 2,
-                  background: checked ? (elite ? 'rgba(241,196,15,0.08)' : 'rgba(255,255,255,0.08)') : 'transparent',
-                  border: `1px solid ${checked ? (elite ? '#f1c40f' : color) : 'transparent'}`,
+                  background: checked ? (elite || adv.prestigeClass ? `${color}14` : 'rgba(255,255,255,0.08)') : 'transparent',
+                  border: `1px solid ${checked ? color : 'transparent'}`,
                   cursor: 'pointer',
-                  boxShadow: checked && elite ? '0 0 6px #f1c40f33' : 'none',
+                  boxShadow: checked && (elite || adv.prestigeClass) ? `0 0 6px ${color}33` : 'none',
                 }}
               >
                 <input
@@ -630,10 +821,13 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
                 <span style={{ color: '#e8d5a0', fontSize: 12, flex: 1 }}>
                   {adv.name}
-                  {elite && <span style={{ color: '#f1c40f', marginLeft: 3 }}>★</span>}
+                  {adv.prestigeClass && <span style={{ color, marginLeft: 3 }}>✦</span>}
+                  {!adv.prestigeClass && elite && <span style={{ color: '#f1c40f', marginLeft: 3 }}>★</span>}
                 </span>
-                <LevelBadge level={adv.level} />
-                <span style={{ color: '#aaa', fontSize: 11 }}>{CLASS_LABELS[adv.class]}</span>
+                <LevelBadge adv={adv} />
+                <span style={{ color: '#aaa', fontSize: 11 }}>
+                  {adv.prestigeClass ? PRESTIGE_CLASS_LABELS[adv.prestigeClass] : CLASS_LABELS[adv.class]}
+                </span>
                 <span style={{ color: hasBonus ? '#2ecc71' : '#f1c40f', fontSize: 11 }}>
                   ⚡{effPower}{hasBonus ? ` (+${effPower - adv.power})` : ''}
                 </span>
@@ -767,13 +961,14 @@ function CollapsibleHeader({ label, count, open, onToggle, color = '#e8d5a0' }: 
   );
 }
 
-function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit, onAllocate }: {
+function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit, onAllocate, onPrestige }: {
   roster: Adventurer[];
   wanderers: Adventurer[];
   selectedAdventurerId: string | null;
   onSelectAdventurer: (id: string | null) => void;
   onRecruit: (id: string) => void;
   onAllocate: (id: string) => void;
+  onPrestige: (id: string) => void;
 }) {
   const [partyOpen, setPartyOpen] = useState(true);
   const [visitorsOpen, setVisitorsOpen] = useState(true);
@@ -797,6 +992,7 @@ function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer
               onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
               onRecruit={onRecruit}
               onAllocate={() => onAllocate(adv.id)}
+              onPrestige={() => onPrestige(adv.id)}
             />
           ))}
         </div>
@@ -891,10 +1087,12 @@ function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
 export function HUD({
   gold, adventurers, quests, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard, upgrades,
+  questsCompleted, tavernPrestige,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
-  onNewGame, onSpendUpgradePoint,
+  onNewGame, onSpendUpgradePoint, onPrestigeAdventurer,
 }: HUDProps) {
   const [allocateId, setAllocateId] = useState<string | null>(null);
+  const [prestigeId, setPrestigeId] = useState<string | null>(null);
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
   const activeQuests = quests.filter(q => q.status === 'active');
@@ -906,6 +1104,10 @@ export function HUD({
 
   const allocateAdv = allocateId
     ? adventurers.find(a => a.id === allocateId) ?? null
+    : null;
+
+  const prestigeAdv = prestigeId
+    ? adventurers.find(a => a.id === prestigeId) ?? null
     : null;
 
   const newGameButtonStyle: React.CSSProperties = {
@@ -922,24 +1124,6 @@ export function HUD({
     letterSpacing: 0.5,
   };
 
-  if (gamePhase === 'won') {
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300,
-        fontFamily: 'serif',
-      }}>
-        <div style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 72, marginBottom: 8 }}>&#x1F3C6;</div>
-          <h1 style={{ color: '#ffd700', fontSize: 40, margin: '0 0 12px' }}>Victory!</h1>
-          <p style={{ color: '#e8d5a0', fontSize: 20 }}>Your tavern earned {gold} gold!</p>
-          <p style={{ color: '#aaa', fontSize: 15, marginTop: 8 }}>Your adventurers are legends across the land.</p>
-          <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
-        </div>
-      </div>
-    );
-  }
-
   if (gamePhase === 'lost') {
     return (
       <div style={{
@@ -952,7 +1136,8 @@ export function HUD({
           <h1 style={{ color: '#e74c3c', fontSize: 40, margin: '0 0 12px' }}>Defeated</h1>
           <p style={{ color: '#e8d5a0', fontSize: 20 }}>All your adventurers were lost.</p>
           <p style={{ color: '#888', fontSize: 15, marginTop: 8 }}>
-            Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> before falling silent.
+            Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> and completed{' '}
+            <span style={{ color: '#c8960c' }}>{questsCompleted} quests</span> before falling silent.
           </p>
           <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
         </div>
@@ -962,14 +1147,19 @@ export function HUD({
 
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', fontFamily: 'serif', userSelect: 'none', zIndex: 100 }}>
-      {/* Top bar — offset 40px for the scene nav bar */}
+      {/* Top bar */}
       <div style={{
         position: 'absolute', top: 40, left: 0, right: 0,
         display: 'flex', justifyContent: 'center', padding: '10px 16px',
         pointerEvents: 'none',
       }}>
-        <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 300, position: 'relative' }}>
-          <GoldBar gold={gold} roomsIncome={(upgrades.rooms ?? 0) * 3 * 2} />
+        <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 320, position: 'relative' }}>
+          <TopBarInfo
+            gold={gold}
+            roomsIncome={(upgrades.rooms ?? 0) * 3 * 2}
+            questsCompleted={questsCompleted}
+            tavernPrestige={tavernPrestige}
+          />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888' }}>
             <span>Roster: {roster.length}/{rosterMax}</span>
             <span>Visitors: {wanderers.length}</span>
@@ -1004,6 +1194,7 @@ export function HUD({
         onSelectAdventurer={onSelectAdventurer}
         onRecruit={onRecruit}
         onAllocate={(id) => { setAllocateId(id); onSelectAdventurer(null); }}
+        onPrestige={(id) => { setPrestigeId(id); onSelectAdventurer(null); }}
       />
 
       {/* Right panel */}
@@ -1014,7 +1205,7 @@ export function HUD({
       />
 
       {/* Recruit popup */}
-      {selectedAdv && !showQuestBoard && !allocateId && (
+      {selectedAdv && !showQuestBoard && !allocateId && !prestigeId && (
         <RecruitPopup
           adv={selectedAdv}
           onRecruit={onRecruit}
@@ -1032,6 +1223,16 @@ export function HUD({
             onSpendUpgradePoint(allocateAdv.id, stat);
             if ((allocateAdv.upgradePoints ?? 0) <= 1) setAllocateId(null);
           }}
+        />
+      )}
+
+      {/* Prestige confirm popup */}
+      {prestigeAdv && !showQuestBoard && (
+        <PrestigeConfirmPopup
+          adv={prestigeAdv}
+          gold={gold}
+          onConfirm={() => onPrestigeAdventurer(prestigeAdv.id)}
+          onClose={() => setPrestigeId(null)}
         />
       )}
 
