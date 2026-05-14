@@ -78,14 +78,21 @@ function LevelBadge({ level }: { level: number }) {
   );
 }
 
-function GoldBar({ gold }: { gold: number }) {
+function GoldBar({ gold, roomsIncome }: { gold: number; roomsIncome: number }) {
   const pct = Math.min(100, (gold / WIN_GOLD) * 100);
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ color: '#ffd700', fontWeight: 'bold', fontSize: 18, textShadow: '0 1px 4px #000' }}>
-          {gold} Gold
-        </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ color: '#ffd700', fontWeight: 'bold', fontSize: 18, textShadow: '0 1px 4px #000' }}>
+            {gold} Gold
+          </span>
+          {roomsIncome > 0 && (
+            <span style={{ color: '#2ecc71', fontSize: 11, fontStyle: 'italic' }}>
+              +{roomsIncome}/min from rooms
+            </span>
+          )}
+        </div>
         <span style={{ color: '#aaa', fontSize: 12 }}>Goal: {WIN_GOLD}g</span>
       </div>
       <div style={{ background: '#2a1a08', borderRadius: 4, height: 8, border: '1px solid #5c3315' }}>
@@ -819,7 +826,7 @@ export function HUD({
         pointerEvents: 'none',
       }}>
         <div style={{ ...panelStyle, pointerEvents: 'auto', minWidth: 300, position: 'relative' }}>
-          <GoldBar gold={gold} />
+          <GoldBar gold={gold} roomsIncome={(upgrades.rooms ?? 0) * 3 * 2} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888' }}>
             <span>Roster: {roster.length}/{rosterMax}</span>
             <span>Visitors: {wanderers.length}</span>

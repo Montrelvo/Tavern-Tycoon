@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useCallback, useRef } from 'react';
-import type { GameState, GameAction, Adventurer, Quest } from './types';
+import type { GameState, GameAction, Adventurer, Quest, Materials } from './types';
 import type { AdventurerClass } from './types';
 import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
@@ -105,7 +105,12 @@ function getLevelForXp(xp: number): number {
 }
 
 
-const DEFAULT_UPGRADES = { cook: 0 as const, bard: false, rosterSlots: 1 as const };
+const DEFAULT_UPGRADES = { cook: 0 as const, bard: false, rosterSlots: 1 as const, rooms: 0 as const, basement: false };
+const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0 };
+const MATERIAL_TYPES: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
+const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12 };
+const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic' };
+const ROOM_INCOME_INTERVAL = 60_000;
 
 function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
   return ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
@@ -121,6 +126,7 @@ function buildFreshState(): GameState {
     selectedAdventurerId: null,
     showQuestBoard: false,
     upgrades: { ...DEFAULT_UPGRADES },
+    materials: { ...DEFAULT_MATERIALS },
   };
 }
 
@@ -162,6 +168,12 @@ function loadFromStorage(): GameState {
       ...DEFAULT_UPGRADES,
       ...(parsed.upgrades ?? {}),
       rosterSlots: (parsed.upgrades?.rosterSlots ?? 1) as 1 | 2 | 3,
+      rooms: (parsed.upgrades?.rooms ?? 0) as 0 | 1 | 2,
+      basement: parsed.upgrades?.basement ?? false,
+    };
+    const mergedMaterials: Materials = {
+      ...DEFAULT_MATERIALS,
+      ...(parsed.materials ?? {}),
     };
     const restored: GameState = {
       ...parsed,
@@ -169,6 +181,7 @@ function loadFromStorage(): GameState {
       selectedAdventurerId: null,
       showQuestBoard: false,
       upgrades: mergedUpgrades,
+      materials: mergedMaterials,
     };
     syncCountersFromState(restored);
     return restored;
@@ -289,15 +302,10 @@ function reducer(state: GameState, action: GameAction): GameState {
         ? Math.max(1, Math.floor(quest.powerRequired * successMultiplier))
         : Math.max(2, Math.floor(quest.powerRequired * failMultiplier));
 
-      let newAdventurers = state.adventurers;
-      let newGold = action.success ? state.gold + quest.reward : state.gold;
-      const deathLog: string[] = [];
-      let logMsg: string;
-
       if (action.success) {
         const baseXp = Math.ceil(quest.powerRequired * 1.2);
         const xpGain = state.upgrades.bard ? Math.ceil(baseXp * 1.25) : baseXp;
-        newAdventurers = state.adventurers.map(adv => {
+        let newAdventurers = state.adventurers.map(adv => {
           if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
           const newHp = Math.max(0, adv.hp - damagePerAdv);
           const newXp = adv.xp + xpGain;
@@ -306,76 +314,87 @@ function reducer(state: GameState, action: GameAction): GameState {
           const powerIncrease = leveledUp ? (newLevel - adv.level) * POWER_PER_LEVEL : 0;
           if (leveledUp) {
             const { maxHp: newMaxHp, attack: newAttack, defense: newDefense } = getClassStats(adv.class, newLevel);
-            return {
-              ...adv,
-              xp: newXp,
-              level: newLevel,
-              power: adv.power + powerIncrease,
-              hp: Math.min(newHp + 10, newMaxHp),
-              maxHp: newMaxHp,
-              attack: newAttack,
-              defense: newDefense,
-            };
+            return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense };
           }
           return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: newHp };
         });
 
-        const died = newAdventurers.filter(a =>
-          quest.assignedAdventurerIds.includes(a.id) && a.hp <= 0
-        );
-        died.forEach(a => deathLog.push(`${a.name} succumbed to wounds after the quest!`));
+        const died = newAdventurers.filter(a => quest.assignedAdventurerIds.includes(a.id) && a.hp <= 0);
+        const deathLog = died.map(a => `${a.name} succumbed to wounds after the quest!`);
         newAdventurers = newAdventurers.filter(a => a.hp > 0);
 
         const levelUps = newAdventurers
           .filter(a => quest.assignedAdventurerIds.includes(a.id))
-          .filter(a => {
-            const before = state.adventurers.find(b => b.id === a.id);
-            return before && a.level > before.level;
-          });
+          .filter(a => { const before = state.adventurers.find(b => b.id === a.id); return before && a.level > before.level; });
 
-        logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
-        if (levelUps.length > 0) {
-          logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}!`).join(' ')}`;
+        let logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
+        if (levelUps.length > 0) logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}!`).join(' ')}`;
+
+        // Material drops: 40% chance per adventurer
+        const newMaterials = { ...state.materials };
+        const materialDrops: string[] = [];
+        for (const _id of quest.assignedAdventurerIds) {
+          if (Math.random() < 0.4) {
+            const mat = MATERIAL_TYPES[Math.floor(Math.random() * MATERIAL_TYPES.length)];
+            newMaterials[mat] += 1;
+            materialDrops.push(MATERIAL_LABELS[mat]);
+          }
         }
+
+        let finalLog = addLog(state.gameLog, logMsg);
+        deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
+        if (materialDrops.length > 0) {
+          const counts: Record<string, number> = {};
+          materialDrops.forEach(m => { counts[m] = (counts[m] ?? 0) + 1; });
+          const dropDesc = Object.entries(counts).map(([m, n]) => `${n} ${m}${n > 1 ? 's' : ''}`).join(', ');
+          finalLog = addLog(finalLog, `Party returned with ${dropDesc}!`);
+        }
+
+        const newGold = state.gold + quest.reward;
+        const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
+        let newPhase: GameState['gamePhase'] = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
+        if (newPhase === 'playing' && remainingRoster.length === 0) newPhase = 'lost';
+
+        return {
+          ...state,
+          gold: newGold,
+          adventurers: newAdventurers,
+          materials: newMaterials,
+          quests: state.quests.map(q => q.id === action.questId ? { ...q, status: 'completed' } : q),
+          gamePhase: newPhase,
+          gameLog: finalLog,
+        };
       } else {
-        newAdventurers = state.adventurers.map(adv => {
+        let newAdventurers = state.adventurers.map(adv => {
           if (!quest.assignedAdventurerIds.includes(adv.id)) return adv;
-          const newHp = Math.max(0, adv.hp - damagePerAdv);
-          return { ...adv, hp: newHp };
+          return { ...adv, hp: Math.max(0, adv.hp - damagePerAdv) };
         });
 
-        const died = newAdventurers.filter(a =>
-          quest.assignedAdventurerIds.includes(a.id) && a.hp <= 0
-        );
-        died.forEach(a => deathLog.push(`${a.name} was lost on the quest!`));
+        const died = newAdventurers.filter(a => quest.assignedAdventurerIds.includes(a.id) && a.hp <= 0);
+        const deathLog = died.map(a => `${a.name} was lost on the quest!`);
         newAdventurers = newAdventurers.filter(a => a.hp > 0);
 
         const lostCount = died.length;
         const survivorCount = quest.assignedAdventurerIds.length - lostCount;
-        logMsg = `Quest "${quest.name}" failed!`;
+        let logMsg = `Quest "${quest.name}" failed!`;
         if (lostCount > 0) logMsg += ` ${lostCount} adventurer${lostCount !== 1 ? 's' : ''} lost.`;
         if (survivorCount > 0) logMsg += ` ${survivorCount} survived, badly wounded.`;
+
+        let finalLog = addLog(state.gameLog, logMsg);
+        deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
+
+        const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
+        let newPhase: GameState['gamePhase'] = state.gamePhase;
+        if (newPhase === 'playing' && remainingRoster.length === 0) newPhase = 'lost';
+
+        return {
+          ...state,
+          adventurers: newAdventurers,
+          quests: state.quests.map(q => q.id === action.questId ? { ...q, status: 'failed' } : q),
+          gamePhase: newPhase,
+          gameLog: finalLog,
+        };
       }
-
-      let finalLog = addLog(state.gameLog, logMsg);
-      deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
-
-      const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
-      let newPhase: GameState['gamePhase'] = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
-      if (newPhase === 'playing' && remainingRoster.length === 0) {
-        newPhase = 'lost';
-      }
-
-      return {
-        ...state,
-        gold: newGold,
-        adventurers: newAdventurers,
-        quests: state.quests.map(q =>
-          q.id === action.questId ? { ...q, status: action.success ? 'completed' : 'failed' } : q
-        ),
-        gamePhase: newPhase,
-        gameLog: finalLog,
-      };
     }
 
     case 'ADVENTURERS_RETURNED': {
@@ -492,7 +511,63 @@ function reducer(state: GameState, action: GameAction): GameState {
           gameLog: addLog(state.gameLog, 'Full company assembled! You can now recruit up to 12 adventurers.'),
         };
       }
+      if (upgrade === 'rooms') {
+        if ((state.upgrades.rooms ?? 0) >= 1 || state.gold < 150) return state;
+        return {
+          ...state,
+          gold: state.gold - 150,
+          upgrades: { ...state.upgrades, rooms: 1 },
+          gameLog: addLog(state.gameLog, 'Upper Rooms constructed! 3 inn rooms now earn passive gold.'),
+        };
+      }
+      if (upgrade === 'rooms_expansion') {
+        if ((state.upgrades.rooms ?? 0) !== 1 || state.gold < 250) return state;
+        return {
+          ...state,
+          gold: state.gold - 250,
+          upgrades: { ...state.upgrades, rooms: 2 },
+          gameLog: addLog(state.gameLog, 'Inn expanded to 6 rooms! Passive income doubled.'),
+        };
+      }
+      if (upgrade === 'basement') {
+        if (state.upgrades.basement || state.gold < 100) return state;
+        return {
+          ...state,
+          gold: state.gold - 100,
+          upgrades: { ...state.upgrades, basement: true },
+          gameLog: addLog(state.gameLog, 'Basement excavated! Quests now yield crafting materials.'),
+        };
+      }
       return state;
+    }
+
+    case 'ROOM_INCOME': {
+      if (state.gamePhase !== 'playing') return state;
+      const rooms = state.upgrades.rooms ?? 0;
+      if (rooms === 0) return state;
+      const income = rooms * 3 * 2;
+      return {
+        ...state,
+        gold: state.gold + income,
+        gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold this minute.`),
+      };
+    }
+
+    case 'SELL_MATERIALS': {
+      if (state.gamePhase !== 'playing') return state;
+      const { herbs, ore, relics } = state.materials;
+      const total = herbs * MATERIAL_SELL_RATES.herbs + ore * MATERIAL_SELL_RATES.ore + relics * MATERIAL_SELL_RATES.relics;
+      if (total === 0) return state;
+      const parts: string[] = [];
+      if (herbs > 0) parts.push(`${herbs} Herb${herbs > 1 ? 's' : ''}`);
+      if (ore > 0) parts.push(`${ore} Ore`);
+      if (relics > 0) parts.push(`${relics} Relic${relics > 1 ? 's' : ''}`);
+      return {
+        ...state,
+        gold: state.gold + total,
+        materials: { herbs: 0, ore: 0, relics: 0 },
+        gameLog: addLog(state.gameLog, `Sold ${parts.join(', ')} for ${total} gold!`),
+      };
     }
 
     default:
@@ -606,6 +681,15 @@ export function useGameState() {
     return () => clearInterval(timer);
   }, [state.gamePhase]);
 
+  // Room income — every 60s while rooms are built
+  useEffect(() => {
+    if (state.gamePhase !== 'playing' || (state.upgrades.rooms ?? 0) === 0) return;
+    const timer = setInterval(() => {
+      dispatch({ type: 'ROOM_INCOME' });
+    }, ROOM_INCOME_INTERVAL);
+    return () => clearInterval(timer);
+  }, [state.gamePhase, state.upgrades.rooms]);
+
   const recruitAdventurer = useCallback((id: string) => {
     const idx = stateRef.current.adventurers.filter(a => a.status === 'recruited').length;
     const targetPos = WAITING_POSITIONS[idx % WAITING_POSITIONS.length];
@@ -645,8 +729,12 @@ export function useGameState() {
     dispatch({ type: 'NEW_GAME', freshState });
   }, []);
 
-  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3') => {
+  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement') => {
     dispatch({ type: 'HIRE_UPGRADE', upgrade });
+  }, []);
+
+  const sellMaterials = useCallback(() => {
+    dispatch({ type: 'SELL_MATERIALS' });
   }, []);
 
   return {
@@ -660,5 +748,6 @@ export function useGameState() {
     removeAdventurer,
     newGame,
     hireUpgrade,
+    sellMaterials,
   };
 }
