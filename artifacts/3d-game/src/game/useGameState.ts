@@ -177,7 +177,7 @@ function loadFromStorage(): GameState {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return buildFreshState();
-    const parsed = JSON.parse(raw) as GameState;
+    const parsed = JSON.parse(raw) as Omit<GameState, 'gamePhase'> & { gamePhase: string };
     const persistedAdventurers = parsed.adventurers
       .filter(a => a.status === 'recruited' || a.status === 'on-quest')
       .map(ensureAdventurerStats);
@@ -204,7 +204,7 @@ function loadFromStorage(): GameState {
       materials: mergedMaterials,
       questsCompleted: parsed.questsCompleted ?? 0,
       tavernPrestige: (parsed.tavernPrestige ?? 0) as 0 | 1 | 2 | 3,
-      gamePhase: parsed.gamePhase === 'won' ? 'playing' : parsed.gamePhase,
+      gamePhase: (parsed.gamePhase === 'won' || parsed.gamePhase !== 'lost' ? 'playing' : 'lost') as GameState['gamePhase'],
     };
     syncCountersFromState(restored);
     return restored;
