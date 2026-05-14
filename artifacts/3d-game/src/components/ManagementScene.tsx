@@ -60,7 +60,7 @@ function BuyButton({ label, cost, canAfford, disabled, onClick }: {
         whiteSpace: 'nowrap',
       }}
     >
-      {label} — {cost}g{!canAfford && !disabled ? ` (${cost - 0}g needed)` : ''}
+      {label} — {cost}g
     </button>
   );
 }
