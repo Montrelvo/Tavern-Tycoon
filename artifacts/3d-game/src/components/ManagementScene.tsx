@@ -461,7 +461,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
           {upgrades.trainingGrounds ? (
             <PurchasedBadge label="Training Grounds active" />
           ) : prestige1Unlocked ? (
-            <BuyButton label="Build Training Grounds" cost={120} canAfford={gold >= 120} onClick={() => onHireUpgrade('training_grounds')} />
+            <BuyButton label="Build Training Grounds" cost={50} canAfford={gold >= 50} onClick={() => onHireUpgrade('training_grounds')} />
           ) : (
             <LockedBadge label="Reach Renowned prestige to unlock" />
           )}
@@ -488,7 +488,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
           {upgrades.enchanter ? (
             <PurchasedBadge label="Enchanter in residence" />
           ) : prestige2Unlocked ? (
-            <BuyButton label="Hire Enchanter" cost={200} canAfford={gold >= 200} onClick={() => onHireUpgrade('enchanter')} />
+            <BuyButton label="Hire Enchanter" cost={150} canAfford={gold >= 150} onClick={() => onHireUpgrade('enchanter')} />
           ) : (
             <LockedBadge label="Reach Celebrated prestige to unlock" />
           )}
@@ -514,7 +514,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
           {upgrades.guildHall ? (
             <PurchasedBadge label="Guild Hall established" />
           ) : prestige3Unlocked ? (
-            <BuyButton label="Build Guild Hall" cost={350} canAfford={gold >= 350} onClick={() => onHireUpgrade('guild_hall')} />
+            <BuyButton label="Build Guild Hall" cost={300} canAfford={gold >= 300} onClick={() => onHireUpgrade('guild_hall')} />
           ) : (
             <LockedBadge label="Reach Legendary prestige to unlock" />
           )}

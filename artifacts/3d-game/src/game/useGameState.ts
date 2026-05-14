@@ -589,28 +589,28 @@ function reducer(state: GameState, action: GameAction): GameState {
         };
       }
       if (upgrade === 'training_grounds') {
-        if (state.upgrades.trainingGrounds || state.gold < 120 || state.tavernPrestige < 1) return state;
+        if (state.upgrades.trainingGrounds || state.gold < 50 || state.tavernPrestige < 1) return state;
         return {
           ...state,
-          gold: state.gold - 120,
+          gold: state.gold - 50,
           upgrades: { ...state.upgrades, trainingGrounds: true },
           gameLog: addLog(state.gameLog, 'Training Grounds established! Quest XP gains increased by 50%.'),
         };
       }
       if (upgrade === 'enchanter') {
-        if (state.upgrades.enchanter || state.gold < 200 || state.tavernPrestige < 2) return state;
+        if (state.upgrades.enchanter || state.gold < 150 || state.tavernPrestige < 2) return state;
         return {
           ...state,
-          gold: state.gold - 200,
+          gold: state.gold - 150,
           upgrades: { ...state.upgrades, enchanter: true },
           gameLog: addLog(state.gameLog, "Enchanter's Study opened! Materials now sell for double value."),
         };
       }
       if (upgrade === 'guild_hall') {
-        if (state.upgrades.guildHall || state.gold < 350 || state.tavernPrestige < 3) return state;
+        if (state.upgrades.guildHall || state.gold < 300 || state.tavernPrestige < 3) return state;
         return {
           ...state,
-          gold: state.gold - 350,
+          gold: state.gold - 300,
           upgrades: { ...state.upgrades, guildHall: true },
           gameLog: addLog(state.gameLog, 'Guild Hall established! Quest dispatch cost is halved.'),
         };
