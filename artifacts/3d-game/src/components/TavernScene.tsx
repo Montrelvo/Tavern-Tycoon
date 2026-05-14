@@ -552,15 +552,24 @@ function DayNightSky() {
 function StaffNPCs({ upgrades }: { upgrades: Upgrades }) {
   const cookRef = useRef<THREE.Group>(null);
   const bardRef = useRef<THREE.Group>(null);
+  const cookArmRef = useRef<THREE.Group>(null);
+  const bardArmRef = useRef<THREE.Group>(null);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (cookRef.current && upgrades.cook > 0) {
       cookRef.current.position.y = Math.sin(t * 1.4) * 0.04;
     }
+    if (cookArmRef.current && upgrades.cook > 0) {
+      cookArmRef.current.rotation.x = Math.sin(t * 3.2) * 0.38;
+      cookArmRef.current.rotation.z = Math.cos(t * 3.2) * 0.28 - 0.3;
+    }
     if (bardRef.current && upgrades.bard) {
       bardRef.current.position.y = Math.sin(t * 1.8 + 1.2) * 0.05;
       bardRef.current.rotation.y = Math.sin(t * 0.9) * 0.15;
+    }
+    if (bardArmRef.current && upgrades.bard) {
+      bardArmRef.current.rotation.x = Math.sin(t * 6.5) * 0.45 - 0.2;
     }
   });
 
@@ -608,6 +617,17 @@ function StaffNPCs({ upgrades }: { upgrades: Upgrades }) {
               <meshStandardMaterial color="#ffd700" emissive="#ffd700" emissiveIntensity={0.6} />
             </mesh>
           )}
+          {/* Stirring arm — pivots from shoulder */}
+          <group ref={cookArmRef} position={[0.2, 0.97, 0.06]}>
+            <mesh position={[0, -0.1, 0]} castShadow>
+              <boxGeometry args={[0.08, 0.22, 0.08]} />
+              <meshStandardMaterial color="#e8c8a0" roughness={0.85} />
+            </mesh>
+            <mesh position={[0.03, -0.26, 0.06]}>
+              <boxGeometry args={[0.07, 0.15, 0.07]} />
+              <meshStandardMaterial color="#e8c8a0" roughness={0.85} />
+            </mesh>
+          </group>
         </group>
       )}
 
@@ -657,6 +677,17 @@ function StaffNPCs({ upgrades }: { upgrades: Upgrades }) {
             <boxGeometry args={[0.12, 0.5, 0.18]} />
             <meshStandardMaterial color="#3b0764" roughness={0.9} />
           </mesh>
+          {/* Strumming arm — pivots from shoulder over the lute */}
+          <group ref={bardArmRef} position={[0.19, 0.95, 0.08]}>
+            <mesh position={[0, -0.1, 0]} castShadow>
+              <boxGeometry args={[0.08, 0.22, 0.08]} />
+              <meshStandardMaterial color="#e8c8a0" roughness={0.85} />
+            </mesh>
+            <mesh position={[0.02, -0.25, 0.05]}>
+              <boxGeometry args={[0.07, 0.14, 0.07]} />
+              <meshStandardMaterial color="#e8c8a0" roughness={0.85} />
+            </mesh>
+          </group>
         </group>
       )}
     </>
