@@ -211,27 +211,32 @@ function AdventurerCard({ adv, isSelected, onSelect, onRecruit, onAllocate }: {
           Recruit (Free)
         </button>
       )}
-      {adv.status === 'recruited' && (adv.upgradePoints ?? 0) > 0 && onAllocate && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onAllocate(); }}
-          style={{
-            marginTop: 4,
-            background: 'linear-gradient(180deg, #c8960c 0%, #a07008 100%)',
-            border: '1px solid #f1c40f',
-            borderRadius: 4,
-            color: '#1a0d00',
-            fontWeight: 'bold',
-            fontSize: 11,
-            padding: '3px 10px',
-            cursor: 'pointer',
-            width: '100%',
-            fontFamily: 'serif',
-            boxShadow: '0 0 6px #f1c40f55',
-          }}
-        >
-          ✦ Allocate {adv.upgradePoints} Point{adv.upgradePoints !== 1 ? 's' : ''}
-        </button>
-      )}
+      {adv.status === 'recruited' && onAllocate && (() => {
+        const pts = adv.upgradePoints ?? 0;
+        const hasPoints = pts > 0;
+        return (
+          <button
+            disabled={!hasPoints}
+            onClick={(e) => { e.stopPropagation(); if (hasPoints) onAllocate(); }}
+            style={{
+              marginTop: 4,
+              background: hasPoints ? 'linear-gradient(180deg, #c8960c 0%, #a07008 100%)' : '#2a1a08',
+              border: `1px solid ${hasPoints ? '#f1c40f' : '#3d2410'}`,
+              borderRadius: 4,
+              color: hasPoints ? '#1a0d00' : '#555',
+              fontWeight: 'bold',
+              fontSize: 11,
+              padding: '3px 10px',
+              cursor: hasPoints ? 'pointer' : 'not-allowed',
+              width: '100%',
+              fontFamily: 'serif',
+              boxShadow: hasPoints ? '0 0 6px #f1c40f55' : 'none',
+            }}
+          >
+            {hasPoints ? `✦ Allocate ${pts} Point${pts !== 1 ? 's' : ''}` : 'Allocate Points'}
+          </button>
+        );
+      })()}
     </div>
   );
 }
