@@ -330,20 +330,18 @@ function reducer(state: GameState, action: GameAction): GameState {
         let logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
         if (levelUps.length > 0) logMsg += ` ${levelUps.map(a => `${a.name} reached level ${a.level}!`).join(' ')}`;
 
-        // Material drops: 40% chance per adventurer
+        // Material drops: 40% per-quest chance to yield 1-2 random materials; only when basement is unlocked
         const newMaterials = { ...state.materials };
-        const materialDrops: string[] = [];
-        for (const _id of quest.assignedAdventurerIds) {
-          if (Math.random() < 0.4) {
+        let finalLog = addLog(state.gameLog, logMsg);
+        deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
+        if (state.upgrades.basement && Math.random() < 0.4) {
+          const dropCount = Math.floor(Math.random() * 2) + 1;
+          const materialDrops: string[] = [];
+          for (let i = 0; i < dropCount; i++) {
             const mat = MATERIAL_TYPES[Math.floor(Math.random() * MATERIAL_TYPES.length)];
             newMaterials[mat] += 1;
             materialDrops.push(MATERIAL_LABELS[mat]);
           }
-        }
-
-        let finalLog = addLog(state.gameLog, logMsg);
-        deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
-        if (materialDrops.length > 0) {
           const counts: Record<string, number> = {};
           materialDrops.forEach(m => { counts[m] = (counts[m] ?? 0) + 1; });
           const dropDesc = Object.entries(counts).map(([m, n]) => `${n} ${m}${n > 1 ? 's' : ''}`).join(', ');
@@ -546,9 +544,11 @@ function reducer(state: GameState, action: GameAction): GameState {
       const rooms = state.upgrades.rooms ?? 0;
       if (rooms === 0) return state;
       const income = rooms * 3 * 2;
+      const newGoldRoom = state.gold + income;
       return {
         ...state,
-        gold: state.gold + income,
+        gold: newGoldRoom,
+        gamePhase: newGoldRoom >= WIN_GOLD ? 'won' : state.gamePhase,
         gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold this minute.`),
       };
     }
@@ -562,9 +562,11 @@ function reducer(state: GameState, action: GameAction): GameState {
       if (herbs > 0) parts.push(`${herbs} Herb${herbs > 1 ? 's' : ''}`);
       if (ore > 0) parts.push(`${ore} Ore`);
       if (relics > 0) parts.push(`${relics} Relic${relics > 1 ? 's' : ''}`);
+      const newGoldSell = state.gold + total;
       return {
         ...state,
-        gold: state.gold + total,
+        gold: newGoldSell,
+        gamePhase: newGoldSell >= WIN_GOLD ? 'won' : state.gamePhase,
         materials: { herbs: 0, ore: 0, relics: 0 },
         gameLog: addLog(state.gameLog, `Sold ${parts.join(', ')} for ${total} gold!`),
       };
