@@ -561,6 +561,144 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
   );
 }
 
+function CollapsibleHeader({ label, count, open, onToggle, color = '#e8d5a0' }: {
+  label: string; count?: number; open: boolean; onToggle: () => void; color?: string;
+}) {
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        cursor: 'pointer', userSelect: 'none', marginBottom: open ? 8 : 0,
+      }}
+    >
+      <span style={{ color, fontWeight: 'bold', fontSize: 13 }}>
+        {label}{count !== undefined ? ` (${count})` : ''}
+      </span>
+      <span style={{ color: '#7a6a5a', fontSize: 11, marginLeft: 6 }}>{open ? '▲' : '▼'}</span>
+    </div>
+  );
+}
+
+function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit }: {
+  roster: Adventurer[];
+  wanderers: Adventurer[];
+  selectedAdventurerId: string | null;
+  onSelectAdventurer: (id: string | null) => void;
+  onRecruit: (id: string) => void;
+}) {
+  const [partyOpen, setPartyOpen] = useState(true);
+  const [visitorsOpen, setVisitorsOpen] = useState(true);
+
+  return (
+    <div style={{
+      position: 'absolute', top: 80, left: 0, bottom: 0,
+      width: 220, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
+      pointerEvents: 'auto', overflowY: 'auto',
+    }}>
+      {roster.length > 0 && (
+        <div style={panelStyle}>
+          <CollapsibleHeader
+            label="Your Party" count={roster.length}
+            open={partyOpen} onToggle={() => setPartyOpen(o => !o)}
+          />
+          {partyOpen && roster.map(adv => (
+            <AdventurerCard
+              key={adv.id} adv={adv}
+              isSelected={selectedAdventurerId === adv.id}
+              onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
+              onRecruit={onRecruit}
+            />
+          ))}
+        </div>
+      )}
+      {wanderers.length > 0 && (
+        <div style={panelStyle}>
+          <CollapsibleHeader
+            label="In the Tavern" count={wanderers.length}
+            open={visitorsOpen} onToggle={() => setVisitorsOpen(o => !o)}
+            color="#b0a090"
+          />
+          {visitorsOpen && wanderers.map(adv => (
+            <AdventurerCard
+              key={adv.id} adv={adv}
+              isSelected={selectedAdventurerId === adv.id}
+              onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
+              onRecruit={onRecruit}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
+  activeQuests: Quest[];
+  gameLog: string[];
+  onToggleQuestBoard: () => void;
+}) {
+  const [questsOpen, setQuestsOpen] = useState(true);
+  const [logOpen, setLogOpen] = useState(true);
+
+  return (
+    <div style={{
+      position: 'absolute', top: 80, right: 0, bottom: 0,
+      width: 210, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
+      pointerEvents: 'auto',
+    }}>
+      <button
+        onClick={onToggleQuestBoard}
+        style={{
+          background: 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)',
+          border: '1px solid #a0631e',
+          borderRadius: 8,
+          color: '#e8d5a0',
+          fontFamily: 'serif',
+          fontWeight: 'bold',
+          fontSize: 15,
+          padding: '10px 16px',
+          cursor: 'pointer',
+          letterSpacing: 0.5,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          flexShrink: 0,
+        }}
+      >
+        Quest Board
+      </button>
+
+      {activeQuests.length > 0 && (
+        <div style={panelStyle}>
+          <CollapsibleHeader
+            label="Active Quests" count={activeQuests.length}
+            open={questsOpen} onToggle={() => setQuestsOpen(o => !o)}
+            color="#f39c12"
+          />
+          {questsOpen && activeQuests.map(q => <ActiveQuestItem key={q.id} quest={q} />)}
+        </div>
+      )}
+
+      <div style={{ ...panelStyle, flex: logOpen ? 1 : 0, overflowY: logOpen ? 'auto' : 'hidden', minHeight: 0 }}>
+        <CollapsibleHeader
+          label="Event Log"
+          open={logOpen} onToggle={() => setLogOpen(o => !o)}
+          color="#b0a090"
+        />
+        {logOpen && gameLog.map((entry, i) => (
+          <div key={i} style={{
+            color: i === 0 ? '#e8d5a0' : '#7a6a5a',
+            fontSize: 11,
+            marginBottom: 4,
+            lineHeight: 1.4,
+          }}>
+            {entry}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function HUD({
   gold, adventurers, quests, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard,
@@ -632,85 +770,20 @@ export function HUD({
       </div>
 
       {/* Left panel */}
-      <div style={{
-        position: 'absolute', top: 80, left: 0, bottom: 0,
-        width: 220, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
-        pointerEvents: 'auto', overflowY: 'auto',
-      }}>
-        {roster.length > 0 && (
-          <div style={panelStyle}>
-            <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>Your Party</div>
-            {roster.map(adv => (
-              <AdventurerCard
-                key={adv.id} adv={adv}
-                isSelected={selectedAdventurerId === adv.id}
-                onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
-                onRecruit={onRecruit}
-              />
-            ))}
-          </div>
-        )}
-        {wanderers.length > 0 && (
-          <div style={panelStyle}>
-            <div style={{ color: '#b0a090', fontSize: 13, marginBottom: 6 }}>In the Tavern</div>
-            {wanderers.map(adv => (
-              <AdventurerCard
-                key={adv.id} adv={adv}
-                isSelected={selectedAdventurerId === adv.id}
-                onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
-                onRecruit={onRecruit}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      <LeftPanel
+        roster={roster}
+        wanderers={wanderers}
+        selectedAdventurerId={selectedAdventurerId}
+        onSelectAdventurer={onSelectAdventurer}
+        onRecruit={onRecruit}
+      />
 
       {/* Right panel */}
-      <div style={{
-        position: 'absolute', top: 80, right: 0, bottom: 0,
-        width: 210, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
-        pointerEvents: 'auto',
-      }}>
-        <button
-          onClick={onToggleQuestBoard}
-          style={{
-            background: 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)',
-            border: '1px solid #a0631e',
-            borderRadius: 8,
-            color: '#e8d5a0',
-            fontFamily: 'serif',
-            fontWeight: 'bold',
-            fontSize: 15,
-            padding: '10px 16px',
-            cursor: 'pointer',
-            letterSpacing: 0.5,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-          }}
-        >
-          Quest Board
-        </button>
-
-        {activeQuests.length > 0 && (
-          <div style={panelStyle}>
-            <div style={{ color: '#f39c12', fontWeight: 'bold', fontSize: 13, marginBottom: 6 }}>Active Quests</div>
-            {activeQuests.map(q => <ActiveQuestItem key={q.id} quest={q} />)}
-          </div>
-        )}
-
-        <div style={{ ...panelStyle, flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          <div style={{ color: '#b0a090', fontSize: 12, marginBottom: 6 }}>Event Log</div>
-          {gameLog.map((entry, i) => (
-            <div key={i} style={{
-              color: i === 0 ? '#e8d5a0' : '#7a6a5a',
-              fontSize: 11,
-              marginBottom: 4,
-              lineHeight: 1.4,
-            }}>
-              {entry}
-            </div>
-          ))}
-        </div>
-      </div>
+      <RightPanel
+        activeQuests={activeQuests}
+        gameLog={gameLog}
+        onToggleQuestBoard={onToggleQuestBoard}
+      />
 
       {/* Recruit popup */}
       {selectedAdv && !showQuestBoard && (

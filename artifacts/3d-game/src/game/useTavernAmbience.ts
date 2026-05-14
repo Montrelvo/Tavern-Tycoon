@@ -16,7 +16,6 @@ export function useTavernAmbience() {
 
     const master = ctx.createGain();
     master.gain.setValueAtTime(0, ctx.currentTime);
-    master.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 4);
     master.connect(ctx.destination);
     masterRef.current = master;
 
