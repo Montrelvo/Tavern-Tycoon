@@ -13,7 +13,7 @@ export const CLASS_COLORS: Record<AdventurerClass, string> = {
   warrior: '#e74c3c',
   mage: '#3498db',
   rogue: '#2ecc71',
-  healer: '#f1c40f',
+  healer: '#f0f0f0',
 };
 
 export const CLASS_LABELS: Record<AdventurerClass, string> = {

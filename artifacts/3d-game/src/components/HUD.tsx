@@ -128,9 +128,14 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
   gold: number;
   onDispatch: (qid: string, aids: string[]) => void;
 }) {
-  const totalPower = availableAdventurers.reduce((sum, a) => sum + a.power, 0);
-  const canDispatch = quest.status === 'available' && availableAdventurers.length > 0 && gold >= DISPATCH_COST;
-  const willSucceed = totalPower >= quest.powerRequired;
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(availableAdventurers.map(a => a.id))
+  );
+
+  const selectedAdventurers = availableAdventurers.filter(a => selectedIds.has(a.id));
+  const selectedPower = selectedAdventurers.reduce((sum, a) => sum + a.power, 0);
+  const canDispatch = quest.status === 'available' && selectedAdventurers.length > 0 && gold >= DISPATCH_COST;
+  const willSucceed = selectedPower >= quest.powerRequired;
 
   const now = Date.now();
   const timeLeft = quest.completesAt ? Math.max(0, Math.ceil((quest.completesAt - now) / 1000)) : null;
@@ -140,6 +145,15 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
   };
   const statusLabel: Record<string, string> = {
     available: 'Available', active: 'In Progress', completed: 'Completed', failed: 'Failed',
+  };
+
+  const toggleAdventurer = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -164,22 +178,58 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
         </span>
       </div>
       <p style={{ color: '#999', fontSize: 12, margin: '0 0 8px', lineHeight: 1.4 }}>{quest.description}</p>
-      <div style={{ display: 'flex', gap: 12, fontSize: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, fontSize: 12, flexWrap: 'wrap', marginBottom: 8 }}>
         <span style={{ color: '#ffd700' }}>Reward: {quest.reward}g</span>
         <span style={{ color: '#e74c3c' }}>Min Power: ⚡{quest.powerRequired}</span>
         {quest.status === 'available' && (
-          <span style={{ color: totalPower >= quest.powerRequired ? '#2ecc71' : '#e74c3c' }}>
-            Your power: ⚡{totalPower}
+          <span style={{ color: willSucceed ? '#2ecc71' : '#e74c3c' }}>
+            Selected: ⚡{selectedPower}
           </span>
         )}
         {timeLeft !== null && <span style={{ color: '#f39c12' }}>Returns in: {timeLeft}s</span>}
       </div>
+
+      {quest.status === 'available' && availableAdventurers.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ color: '#b0a090', fontSize: 11, marginBottom: 4 }}>Select adventurers to send:</div>
+          {availableAdventurers.map(adv => {
+            const checked = selectedIds.has(adv.id);
+            const color = CLASS_COLORS[adv.class];
+            return (
+              <label
+                key={adv.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 6px', borderRadius: 4, marginBottom: 2,
+                  background: checked ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  border: `1px solid ${checked ? color : 'transparent'}`,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleAdventurer(adv.id)}
+                  style={{ accentColor: color, width: 13, height: 13 }}
+                />
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
+                <span style={{ color: '#e8d5a0', fontSize: 12, flex: 1 }}>{adv.name}</span>
+                <span style={{ color: '#aaa', fontSize: 11 }}>
+                  {CLASS_LABELS[adv.class]}
+                </span>
+                <span style={{ color: '#f1c40f', fontSize: 11 }}>⚡{adv.power}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
       {quest.status === 'available' && (
         <button
-          onClick={() => onDispatch(quest.id, availableAdventurers.map(a => a.id))}
+          onClick={() => onDispatch(quest.id, selectedAdventurers.map(a => a.id))}
           disabled={!canDispatch}
           style={{
-            marginTop: 10,
+            marginTop: 2,
             background: !canDispatch ? '#3a3a3a' : willSucceed ? '#2c7a3a' : '#7a2c2c',
             border: 'none',
             borderRadius: 6,
@@ -194,9 +244,11 @@ function QuestCard({ quest, availableAdventurers, gold, onDispatch }: {
         >
           {availableAdventurers.length === 0
             ? 'No idle recruits available'
+            : selectedAdventurers.length === 0
+            ? 'Select adventurers to send'
             : gold < DISPATCH_COST
             ? `Need ${DISPATCH_COST}g to dispatch`
-            : `Send ${availableAdventurers.length} adventurer${availableAdventurers.length !== 1 ? 's' : ''} (−${DISPATCH_COST}g)`}
+            : `Send ${selectedAdventurers.length} adventurer${selectedAdventurers.length !== 1 ? 's' : ''} (−${DISPATCH_COST}g)`}
         </button>
       )}
     </div>
@@ -298,6 +350,28 @@ export function HUD({
           <h1 style={{ color: '#ffd700', fontSize: 40, margin: '0 0 12px' }}>Victory!</h1>
           <p style={{ color: '#e8d5a0', fontSize: 20 }}>Your tavern earned {gold} gold!</p>
           <p style={{ color: '#aaa', fontSize: 15, marginTop: 8 }}>Your adventurers are legends across the land.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (gamePhase === 'lost') {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300,
+        fontFamily: 'serif',
+      }}>
+        <div style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 72, marginBottom: 8 }}>&#x1F480;</div>
+          <h1 style={{ color: '#e74c3c', fontSize: 40, margin: '0 0 12px' }}>Defeated</h1>
+          <p style={{ color: '#e8d5a0', fontSize: 20 }}>All your adventurers were lost.</p>
+          <p style={{ color: '#888', fontSize: 15, marginTop: 8 }}>
+            Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> before falling silent.
+          </p>
+          <p style={{ color: '#7a6a5a', fontSize: 13, marginTop: 16, fontStyle: 'italic' }}>
+            Reload the page to try again.
+          </p>
         </div>
       </div>
     );

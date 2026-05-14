@@ -147,13 +147,27 @@ function reducer(state: GameState, action: GameAction): GameState {
       const quest = state.quests.find(q => q.id === action.questId);
       if (!quest) return state;
       const newGold = action.success ? state.gold + quest.reward : state.gold;
-      const newPhase = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
-      const logMsg = action.success
-        ? `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`
-        : `Quest "${quest.name}" failed! The party was overpowered.`;
+
+      let newAdventurers = state.adventurers;
+      let logMsg: string;
+      if (action.success) {
+        logMsg = `Quest "${quest.name}" succeeded! Earned ${quest.reward} gold!`;
+      } else {
+        newAdventurers = state.adventurers.filter(a => !quest.assignedAdventurerIds.includes(a.id));
+        const lostCount = quest.assignedAdventurerIds.length;
+        logMsg = `Quest "${quest.name}" failed! ${lostCount} adventurer${lostCount !== 1 ? 's' : ''} lost.`;
+      }
+
+      const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
+      let newPhase = newGold >= WIN_GOLD ? 'won' : state.gamePhase;
+      if (newPhase === 'playing' && !action.success && remainingRoster.length === 0) {
+        newPhase = 'lost';
+      }
+
       return {
         ...state,
         gold: newGold,
+        adventurers: newAdventurers,
         quests: state.quests.map(q =>
           q.id === action.questId ? { ...q, status: action.success ? 'completed' : 'failed' } : q
         ),
@@ -165,7 +179,7 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'ADVENTURERS_RETURNED': {
       return {
         ...state,
-        adventurers: state.adventurers.map((a, i) => {
+        adventurers: state.adventurers.map(a => {
           const idx = action.adventurerIds.indexOf(a.id);
           if (idx === -1) return a;
           return { ...a, status: 'recruited', targetPosition: action.targetPositions[idx] };
@@ -240,14 +254,16 @@ export function useGameState() {
           .reduce((sum, a) => sum + a.power, 0);
         const success = assignedPower >= quest.powerRequired;
         dispatch({ type: 'QUEST_RESOLVED', questId: quest.id, success });
-        const returnPositions: [number, number, number][] = quest.assignedAdventurerIds.map(
-          (_, i) => WAITING_POSITIONS[i % WAITING_POSITIONS.length]
-        );
-        dispatch({
-          type: 'ADVENTURERS_RETURNED',
-          adventurerIds: quest.assignedAdventurerIds,
-          targetPositions: returnPositions,
-        });
+        if (success) {
+          const returnPositions: [number, number, number][] = quest.assignedAdventurerIds.map(
+            (_, i) => WAITING_POSITIONS[i % WAITING_POSITIONS.length]
+          );
+          dispatch({
+            type: 'ADVENTURERS_RETURNED',
+            adventurerIds: quest.assignedAdventurerIds,
+            targetPositions: returnPositions,
+          });
+        }
       });
     }, delay + 100);
     return () => clearTimeout(timer);
