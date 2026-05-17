@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Adventurer, Quest, Upgrades } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
-  DISPATCH_COST, ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
+  ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
   QUEST_TYPE_LABELS, QUEST_TYPE_COLORS, CLASS_STAT_COLORS, ROSTER_CAPS,
   PRESTIGE_CLASS_LABELS, PRESTIGE_CLASS_COLORS, PRESTIGE_CLASS_PASSIVE_LABELS,
   PRESTIGE_CLASS_FOR, TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
@@ -704,11 +704,9 @@ function ActiveQuestItem({ quest }: { quest: Quest }) {
   );
 }
 
-function QuestCard({ quest, availableAdventurers, gold, dispatchCost, onDispatch }: {
+function QuestCard({ quest, availableAdventurers, onDispatch }: {
   quest: Quest;
   availableAdventurers: Adventurer[];
-  gold: number;
-  dispatchCost: number;
   onDispatch: (qid: string, aids: string[]) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
@@ -722,7 +720,7 @@ function QuestCard({ quest, availableAdventurers, gold, dispatchCost, onDispatch
   }
 
   const selectedPower = selectedAdventurers.reduce((sum, a) => sum + getEffectivePower(a), 0);
-  const canDispatch = quest.status === 'available' && selectedAdventurers.length > 0 && gold >= dispatchCost;
+  const canDispatch = quest.status === 'available' && selectedAdventurers.length > 0;
   const willSucceed = selectedPower >= quest.powerRequired;
 
   const now = Date.now();
@@ -858,20 +856,17 @@ function QuestCard({ quest, availableAdventurers, gold, dispatchCost, onDispatch
             ? 'No idle recruits available'
             : selectedAdventurers.length === 0
             ? 'Select adventurers to send'
-            : gold < dispatchCost
-            ? `Need ${dispatchCost}g to dispatch`
-            : `Send ${selectedAdventurers.length} adventurer${selectedAdventurers.length !== 1 ? 's' : ''} (−${dispatchCost}g)`}
+            : `Send ${selectedAdventurers.length} adventurer${selectedAdventurers.length !== 1 ? 's' : ''}`}
         </button>
       )}
     </div>
   );
 }
 
-function QuestBoardModal({ quests, adventurers, gold, dispatchCost, onDispatch, onRefresh, onClose }: {
+function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onClose }: {
   quests: Quest[];
   adventurers: Adventurer[];
   gold: number;
-  dispatchCost: number;
   onDispatch: (qid: string, aids: string[]) => void;
   onRefresh: () => void;
   onClose: () => void;
@@ -906,8 +901,6 @@ function QuestBoardModal({ quests, adventurers, gold, dispatchCost, onDispatch, 
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>
         <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
-          Dispatching costs <span style={{ color: '#ffd700' }}>{dispatchCost}g</span>
-          {dispatchCost < DISPATCH_COST && <span style={{ color: '#2ecc71' }}> (Guild Hall discount!)</span>}.
           Class abilities grant bonus power on matching quest types — shown in <span style={{ color: '#2ecc71' }}>green</span>.
         </p>
         {quests.map(quest => (
@@ -915,8 +908,6 @@ function QuestBoardModal({ quests, adventurers, gold, dispatchCost, onDispatch, 
             key={quest.id}
             quest={quest}
             availableAdventurers={idleRecruits}
-            gold={gold}
-            dispatchCost={dispatchCost}
             onDispatch={onDispatch}
           />
         ))}
@@ -1235,7 +1226,6 @@ export function HUD({
             quests={quests}
             adventurers={adventurers}
             gold={gold}
-            dispatchCost={upgrades.guildHall ? Math.floor(DISPATCH_COST / 2) : DISPATCH_COST}
             onDispatch={onDispatchQuest}
             onRefresh={onRefreshQuests}
             onClose={onToggleQuestBoard}

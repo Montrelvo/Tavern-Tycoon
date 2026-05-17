@@ -3,7 +3,7 @@ import type { GameState, GameAction, Adventurer, Quest, Materials } from './type
 import type { AdventurerClass } from './types';
 import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
-  QUEST_POOL, MAX_PARTY_SIZE, DISPATCH_COST,
+  QUEST_POOL, MAX_PARTY_SIZE,
   ENTRANCE_POS, WANDERING_POSITIONS, WAITING_POSITIONS,
   SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
   XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
@@ -308,14 +308,13 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'DISPATCH_QUEST': {
       const quest = state.quests.find(q => q.id === action.questId);
-      const dispatchCost = state.upgrades.guildHall ? Math.floor(DISPATCH_COST / 2) : DISPATCH_COST;
-      if (!quest || state.gold < dispatchCost) return state;
+      if (!quest) return state;
       const assignedAdventurers = state.adventurers.filter(a => action.adventurerIds.includes(a.id));
       const effectivePower = calculateEffectivePower(assignedAdventurers, quest.questType);
       const success = effectivePower >= quest.powerRequired;
       return {
         ...state,
-        gold: state.gold - dispatchCost,
+
         quests: state.quests.map(q =>
           q.id === action.questId
             ? { ...q, status: 'active', assignedAdventurerIds: action.adventurerIds, completesAt: Date.now() + quest.duration * 1000 }
