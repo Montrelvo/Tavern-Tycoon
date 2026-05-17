@@ -131,3 +131,39 @@ export const PRESTIGE_CLASS_FOR: Record<AdventurerClass, PrestigeClass> = {
   rogue: 'shadowblade',
   healer: 'warden',
 };
+
+export type BaseStat = 'str' | 'dex' | 'con' | 'int' | 'wis';
+
+export const STAT_LABELS: Record<BaseStat, string> = {
+  str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS',
+};
+
+export const STAT_FULL_LABELS: Record<BaseStat, string> = {
+  str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom',
+};
+
+export const STAT_COLORS: Record<BaseStat, string> = {
+  str: '#e74c3c', dex: '#2ecc71', con: '#e67e22', int: '#3498db', wis: '#9b59b6',
+};
+
+export const BASE_STATS_BY_CLASS: Record<AdventurerClass, Record<BaseStat, number>> = {
+  warrior: { str: 12, dex: 8,  con: 10, int: 5,  wis: 5  },
+  mage:    { str:  4, dex: 7,  con:  5, int: 14, wis: 10 },
+  rogue:   { str:  8, dex: 14, con:  7, int:  6, wis: 5  },
+  healer:  { str:  5, dex: 6,  con:  9, int:  8, wis: 12 },
+};
+
+export const STAT_GROWTH_BY_CLASS: Record<AdventurerClass, Record<BaseStat, number>> = {
+  warrior: { str: 2, dex: 1, con: 2, int: 0, wis: 0 },
+  mage:    { str: 0, dex: 1, con: 0, int: 3, wis: 1 },
+  rogue:   { str: 1, dex: 3, con: 1, int: 1, wis: 0 },
+  healer:  { str: 0, dex: 0, con: 1, int: 1, wis: 3 },
+};
+
+export const STAT_DESCRIPTIONS: Record<BaseStat, string> = {
+  str: 'Raw physical power. Governs melee damage and carrying capacity.',
+  dex: 'Speed and precision. Affects evasion and ranged attacks.',
+  con: 'Endurance and vitality. Higher constitution means more HP.',
+  int: 'Magical aptitude. Amplifies spell power and arcane knowledge.',
+  wis: 'Perception and spirit. Enhances healing and resistance to curses.',
+};

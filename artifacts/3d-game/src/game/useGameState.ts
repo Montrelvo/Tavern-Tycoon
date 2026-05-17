@@ -11,6 +11,7 @@ import {
   ROSTER_CAPS,
   TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
+  BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS,
 } from './constants';
 import { calculateEffectivePower } from './questUtils';
 
@@ -46,10 +47,17 @@ const CLASS_STAT_BASES: Record<AdventurerClass, ClassStats> = {
 
 function getClassStats(cls: AdventurerClass, level: number) {
   const s = CLASS_STAT_BASES[cls];
+  const base = BASE_STATS_BY_CLASS[cls];
+  const growth = STAT_GROWTH_BY_CLASS[cls];
   return {
     maxHp:   s.baseHp   + (level - 1) * s.hpPerLevel,
     attack:  s.baseAttack  + (level - 1) * s.attackPerLevel,
     defense: s.baseDefense + (level - 1) * s.defensePerLevel,
+    str: base.str + (level - 1) * growth.str,
+    dex: base.dex + (level - 1) * growth.dex,
+    con: base.con + (level - 1) * growth.con,
+    int: base.int + (level - 1) * growth.int,
+    wis: base.wis + (level - 1) * growth.wis,
   };
 }
 
@@ -65,7 +73,7 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
   const cls = ADVENTURER_CLASSES[Math.floor(Math.random() * ADVENTURER_CLASSES.length)];
   const targetPos = pickRandomWaypoint(occupiedPositions);
   const level = 1;
-  const { maxHp, attack, defense } = getClassStats(cls, level);
+  const { maxHp, attack, defense, str, dex, con, int: intStat, wis } = getClassStats(cls, level);
 
   return {
     id: `adv-${++adventurerCounter}`,
@@ -79,6 +87,11 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
     maxHp,
     attack,
     defense,
+    str,
+    dex,
+    con,
+    int: intStat,
+    wis,
     upgradePoints: 0,
     status: 'entering',
     position: [...ENTRANCE_POS] as [number, number, number],
@@ -146,16 +159,20 @@ function buildFreshState(): GameState {
 }
 
 function ensureAdventurerStats(adv: Adventurer): Adventurer {
-  if (adv.hp !== undefined && adv.maxHp !== undefined && adv.attack !== undefined && adv.defense !== undefined) {
-    return { ...adv, upgradePoints: adv.upgradePoints ?? 0, prestigeClass: adv.prestigeClass ?? null };
-  }
-  const { maxHp, attack, defense } = getClassStats(adv.class, adv.level);
+  const classStats = getClassStats(adv.class, adv.level);
+  // Cast to allow reading fields that may be absent in pre-update saves
+  const raw = adv as unknown as Record<string, unknown>;
   return {
     ...adv,
-    hp: adv.hp ?? maxHp,
-    maxHp: adv.maxHp ?? maxHp,
-    attack: adv.attack ?? attack,
-    defense: adv.defense ?? defense,
+    hp: adv.hp ?? classStats.maxHp,
+    maxHp: adv.maxHp ?? classStats.maxHp,
+    attack: adv.attack ?? classStats.attack,
+    defense: adv.defense ?? classStats.defense,
+    str: (raw.str as number | undefined) ?? classStats.str,
+    dex: (raw.dex as number | undefined) ?? classStats.dex,
+    con: (raw.con as number | undefined) ?? classStats.con,
+    int: (raw.int as number | undefined) ?? classStats.int,
+    wis: (raw.wis as number | undefined) ?? classStats.wis,
     upgradePoints: adv.upgradePoints ?? 0,
     prestigeClass: adv.prestigeClass ?? null,
   };
@@ -347,7 +364,18 @@ function reducer(state: GameState, action: GameAction): GameState {
             const newDefense = adv.defense + (newClassStats.defense - oldClassStats.defense);
             const levelsGained = newLevel - adv.level;
             const pointsGranted = levelsGained * 2;
-            return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp, attack: newAttack, defense: newDefense, upgradePoints: (adv.upgradePoints ?? 0) + pointsGranted };
+            return {
+              ...adv,
+              xp: newXp, level: newLevel, power: adv.power + powerIncrease,
+              hp: Math.min(newHp + 10, newMaxHp), maxHp: newMaxHp,
+              attack: newAttack, defense: newDefense,
+              str: adv.str + (newClassStats.str - oldClassStats.str),
+              dex: adv.dex + (newClassStats.dex - oldClassStats.dex),
+              con: adv.con + (newClassStats.con - oldClassStats.con),
+              int: adv.int + (newClassStats.int - oldClassStats.int),
+              wis: adv.wis + (newClassStats.wis - oldClassStats.wis),
+              upgradePoints: (adv.upgradePoints ?? 0) + pointsGranted,
+            };
           }
           return { ...adv, xp: newXp, level: newLevel, power: adv.power + powerIncrease, hp: newHp };
         });
