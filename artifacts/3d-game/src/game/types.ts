@@ -3,6 +3,8 @@ export type PrestigeClass = 'knight' | 'archmage' | 'shadowblade' | 'warden';
 export type AdventurerStatus = 'entering' | 'idle' | 'recruited' | 'on-quest';
 export type QuestType = 'beast' | 'arcane' | 'stealth' | 'combat';
 
+export type BaseStat = 'str' | 'dex' | 'con' | 'int' | 'wis';
+
 export interface Adventurer {
   id: string;
   name: string;
@@ -15,6 +17,11 @@ export interface Adventurer {
   maxHp: number;
   attack: number;
   defense: number;
+  str: number;
+  dex: number;
+  con: number;
+  int: number;
+  wis: number;
   upgradePoints: number;
   status: AdventurerStatus;
   position: [number, number, number];

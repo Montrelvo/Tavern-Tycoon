@@ -4,6 +4,7 @@ import { Suspense, Component, type ReactNode, useEffect, useRef, useState } from
 import { TavernScene } from './components/TavernScene';
 import { HUD } from './components/HUD';
 import { ManagementScene } from './components/ManagementScene';
+import { RecruitsScene } from './components/RecruitsScene';
 import { useGameState } from './game/useGameState';
 import { useTavernAmbience } from './game/useTavernAmbience';
 import './index.css';
@@ -46,11 +47,18 @@ function LoadingScreen() {
   );
 }
 
-type ActiveScene = 'tavern' | 'management';
+type ActiveScene = 'tavern' | 'management' | 'recruits';
 
-function SceneNav({ activeScene, onSetScene }: {
+const SCENE_LABELS: Record<ActiveScene, string> = {
+  tavern: '⚔ Tavern',
+  management: '🏗 Manage',
+  recruits: '🧙 Recruits',
+};
+
+function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
   activeScene: ActiveScene;
   onSetScene: (s: ActiveScene) => void;
+  upgradePointAlert: boolean;
 }) {
   return (
     <div style={{
@@ -75,9 +83,9 @@ function SceneNav({ activeScene, onSetScene }: {
       }}>
         The Wanderer's Rest
       </span>
-      {(['tavern', 'management'] as ActiveScene[]).map(scene => {
+      {(['tavern', 'management', 'recruits'] as ActiveScene[]).map(scene => {
         const active = activeScene === scene;
-        const label = scene === 'tavern' ? '⚔ Tavern' : '🏗 Manage';
+        const hasAlert = scene === 'recruits' && upgradePointAlert && !active;
         return (
           <button
             key={scene}
@@ -96,9 +104,18 @@ function SceneNav({ activeScene, onSetScene }: {
               cursor: 'pointer',
               transition: 'all 0.15s',
               letterSpacing: 0.3,
+              position: 'relative',
             }}
           >
-            {label}
+            {SCENE_LABELS[scene]}
+            {hasAlert && (
+              <span style={{
+                position: 'absolute', top: -3, right: -3,
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#f1c40f', border: '1px solid #1a0d00',
+                boxShadow: '0 0 4px #f1c40f',
+              }} />
+            )}
           </button>
         );
       })}
@@ -108,7 +125,6 @@ function SceneNav({ activeScene, onSetScene }: {
 
 export default function App() {
   const [activeScene, setActiveScene] = useState<ActiveScene>('tavern');
-
   const {
     state,
     recruitAdventurer,
@@ -146,18 +162,24 @@ export default function App() {
     prevLogRef.current = curr;
   }, [state.gameLog, playSound]);
 
-  const rosterCount = state.adventurers.filter(
+  const recruited = state.adventurers.filter(
     a => a.status === 'recruited' || a.status === 'on-quest'
-  ).length;
+  );
+  const rosterCount = recruited.length;
+  const upgradePointAlert = recruited.some(a => (a.upgradePoints ?? 0) > 0);
 
   return (
     <div
       style={{ width: '100vw', height: '100vh', background: '#0d0700', overflow: 'hidden' }}
       onClick={handleFirstInteraction}
     >
-      <SceneNav activeScene={activeScene} onSetScene={setActiveScene} />
+      <SceneNav
+        activeScene={activeScene}
+        onSetScene={setActiveScene}
+        upgradePointAlert={upgradePointAlert}
+      />
 
-      {/* Tavern 3D scene — always mounted to preserve WebGL state, hidden when management is active */}
+      {/* Tavern 3D scene — always mounted to preserve WebGL state, hidden when not active */}
       <div style={{ display: activeScene === 'tavern' ? 'block' : 'none' }}>
         <WebGLErrorBoundary>
           <Suspense fallback={<LoadingScreen />}>
@@ -208,8 +230,6 @@ export default function App() {
           onRefreshQuests={refreshQuests}
           onPlaySound={playSound}
           onNewGame={newGame}
-          onSpendUpgradePoint={spendUpgradePoint}
-          onPrestigeAdventurer={prestigeAdventurer}
         />
       </div>
 
@@ -223,6 +243,16 @@ export default function App() {
           tavernPrestige={state.tavernPrestige}
           onHireUpgrade={hireUpgrade}
           onSellMaterials={sellMaterials}
+        />
+      )}
+
+      {/* Recruits scene */}
+      {activeScene === 'recruits' && (
+        <RecruitsScene
+          adventurers={state.adventurers}
+          gold={state.gold}
+          onSpendUpgradePoint={spendUpgradePoint}
+          onPrestigeAdventurer={prestigeAdventurer}
         />
       )}
     </div>

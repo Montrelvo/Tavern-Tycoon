@@ -28,8 +28,6 @@ interface HUDProps {
   onRefreshQuests: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
-  onSpendUpgradePoint: (adventurerId: string, stat: 'hp' | 'attack' | 'defense') => void;
-  onPrestigeAdventurer: (id: string) => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -965,14 +963,12 @@ function CollapsibleHeader({ label, count, open, onToggle, color = '#e8d5a0' }: 
   );
 }
 
-function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit, onAllocate, onPrestige }: {
+function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer, onRecruit }: {
   roster: Adventurer[];
   wanderers: Adventurer[];
   selectedAdventurerId: string | null;
   onSelectAdventurer: (id: string | null) => void;
   onRecruit: (id: string) => void;
-  onAllocate: (id: string) => void;
-  onPrestige: (id: string) => void;
 }) {
   const [partyOpen, setPartyOpen] = useState(true);
   const [visitorsOpen, setVisitorsOpen] = useState(true);
@@ -995,8 +991,6 @@ function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer
               isSelected={selectedAdventurerId === adv.id}
               onSelect={() => onSelectAdventurer(selectedAdventurerId === adv.id ? null : adv.id)}
               onRecruit={onRecruit}
-              onAllocate={() => onAllocate(adv.id)}
-              onPrestige={() => onPrestige(adv.id)}
             />
           ))}
         </div>
@@ -1093,10 +1087,8 @@ export function HUD({
   selectedAdventurerId, showQuestBoard, upgrades,
   questsCompleted, tavernPrestige,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
-  onNewGame, onSpendUpgradePoint, onPrestigeAdventurer,
+  onNewGame,
 }: HUDProps) {
-  const [allocateId, setAllocateId] = useState<string | null>(null);
-  const [prestigeId, setPrestigeId] = useState<string | null>(null);
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
   const activeQuests = quests.filter(q => q.status === 'active');
@@ -1104,14 +1096,6 @@ export function HUD({
 
   const selectedAdv = selectedAdventurerId
     ? adventurers.find(a => a.id === selectedAdventurerId) ?? null
-    : null;
-
-  const allocateAdv = allocateId
-    ? adventurers.find(a => a.id === allocateId) ?? null
-    : null;
-
-  const prestigeAdv = prestigeId
-    ? adventurers.find(a => a.id === prestigeId) ?? null
     : null;
 
   const newGameButtonStyle: React.CSSProperties = {
@@ -1197,8 +1181,6 @@ export function HUD({
         selectedAdventurerId={selectedAdventurerId}
         onSelectAdventurer={onSelectAdventurer}
         onRecruit={onRecruit}
-        onAllocate={(id) => { setAllocateId(id); onSelectAdventurer(null); }}
-        onPrestige={(id) => { setPrestigeId(id); onSelectAdventurer(null); }}
       />
 
       {/* Right panel */}
@@ -1209,34 +1191,12 @@ export function HUD({
       />
 
       {/* Recruit popup */}
-      {selectedAdv && !showQuestBoard && !allocateId && !prestigeId && (
+      {selectedAdv && !showQuestBoard && (
         <RecruitPopup
           adv={selectedAdv}
           onRecruit={onRecruit}
           onClose={() => onSelectAdventurer(null)}
           onPlaySound={onPlaySound}
-        />
-      )}
-
-      {/* Stat Allocation popup */}
-      {allocateAdv && !showQuestBoard && (
-        <StatAllocationPopup
-          adv={allocateAdv}
-          onClose={() => setAllocateId(null)}
-          onSpend={(stat) => {
-            onSpendUpgradePoint(allocateAdv.id, stat);
-            if ((allocateAdv.upgradePoints ?? 0) <= 1) setAllocateId(null);
-          }}
-        />
-      )}
-
-      {/* Prestige confirm popup */}
-      {prestigeAdv && !showQuestBoard && (
-        <PrestigeConfirmPopup
-          adv={prestigeAdv}
-          gold={gold}
-          onConfirm={() => onPrestigeAdventurer(prestigeAdv.id)}
-          onClose={() => setPrestigeId(null)}
         />
       )}
 
