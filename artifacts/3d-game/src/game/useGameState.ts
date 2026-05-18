@@ -8,7 +8,7 @@ import {
   SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
   XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
   WANDER_INTERVAL_MIN, WANDER_INTERVAL_MAX, HP_RECOVERY_INTERVAL,
-  ROSTER_CAPS,
+  ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST,
   TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
   BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS,
@@ -125,21 +125,27 @@ function getLevelForXp(xp: number): number {
 const DEFAULT_UPGRADES = {
   cook: 0 as const,
   bard: false,
-  rosterSlots: 1 as const,
+  rosterSlots: 0,
   rooms: 0 as const,
   basement: false,
   trainingGrounds: false,
   enchanter: false,
   guildHall: false,
 };
-const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0 };
-const MATERIAL_TYPES: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
-const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12 };
-const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic' };
-const ROOM_INCOME_INTERVAL = 60_000;
+const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0, bones: 0, pelts: 0, venom: 0 };
+const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12, bones: 8, pelts: 8, venom: 8 };
+const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic', bones: 'Bone', pelts: 'Pelt', venom: 'Venom' };
 
-function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
-  return ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
+const MONSTER_PART_DROPS: Record<string, Array<keyof Materials>> = {
+  beast:   ['pelts', 'pelts', 'bones', 'pelts', 'bones'],
+  combat:  ['bones', 'bones', 'pelts', 'venom', 'bones'],
+  arcane:  ['venom', 'venom', 'bones', 'venom', 'relics'],
+  stealth: ['pelts', 'venom', 'venom', 'bones', 'pelts'],
+};
+const ROOM_INCOME_INTERVAL = 10_000;
+
+function getRosterMax(upgrades: { rosterSlots?: number }): number {
+  return ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
 }
 
 function buildFreshState(): GameState {
@@ -201,7 +207,7 @@ function loadFromStorage(): GameState {
     const mergedUpgrades = {
       ...DEFAULT_UPGRADES,
       ...(parsed.upgrades ?? {}),
-      rosterSlots: (parsed.upgrades?.rosterSlots ?? 1) as 1 | 2 | 3,
+      rosterSlots: Math.max(0, (parsed.upgrades?.rosterSlots ?? 1) - 1),
       rooms: (parsed.upgrades?.rooms ?? 0) as 0 | 1 | 2,
       basement: parsed.upgrades?.basement ?? false,
       trainingGrounds: parsed.upgrades?.trainingGrounds ?? false,
@@ -403,8 +409,12 @@ function reducer(state: GameState, action: GameAction): GameState {
         if (state.upgrades.basement && Math.random() < 0.4) {
           const dropCount = Math.floor(Math.random() * 2) + 1;
           const materialDrops: string[] = [];
+          const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
+          const monsterPool = MONSTER_PART_DROPS[quest.questType] ?? ['bones', 'pelts', 'venom'];
           for (let i = 0; i < dropCount; i++) {
-            const mat = MATERIAL_TYPES[Math.floor(Math.random() * MATERIAL_TYPES.length)];
+            const useMonsterPart = Math.random() < 0.6;
+            const pool = useMonsterPart ? monsterPool : craftingPool;
+            const mat = pool[Math.floor(Math.random() * pool.length)];
             newMaterials[mat] += 1;
             materialDrops.push(MATERIAL_LABELS[mat]);
           }
@@ -570,22 +580,15 @@ function reducer(state: GameState, action: GameAction): GameState {
           gameLog: addLog(state.gameLog, 'A bard joins your tavern, filling it with music!'),
         };
       }
-      if (upgrade === 'roster_2') {
-        if ((state.upgrades.rosterSlots ?? 1) >= 2 || state.gold < 100) return state;
+      if (upgrade === 'roster_expand') {
+        if (state.gold < ROSTER_UPGRADE_COST) return state;
+        const newSlots = (state.upgrades.rosterSlots ?? 0) + 1;
+        const newMax = ROSTER_BASE + newSlots * ROSTER_UPGRADE_SIZE;
         return {
           ...state,
-          gold: state.gold - 100,
-          upgrades: { ...state.upgrades, rosterSlots: 2 },
-          gameLog: addLog(state.gameLog, 'Roster expanded! You can now recruit up to 8 adventurers.'),
-        };
-      }
-      if (upgrade === 'roster_3') {
-        if ((state.upgrades.rosterSlots ?? 1) >= 3 || state.gold < 200) return state;
-        return {
-          ...state,
-          gold: state.gold - 200,
-          upgrades: { ...state.upgrades, rosterSlots: 3 },
-          gameLog: addLog(state.gameLog, 'Full company assembled! You can now recruit up to 12 adventurers.'),
+          gold: state.gold - ROSTER_UPGRADE_COST,
+          upgrades: { ...state.upgrades, rosterSlots: newSlots },
+          gameLog: addLog(state.gameLog, `Roster expanded! You can now recruit up to ${newMax} adventurers.`),
         };
       }
       if (upgrade === 'rooms') {
@@ -649,30 +652,35 @@ function reducer(state: GameState, action: GameAction): GameState {
       if (state.gamePhase !== 'playing') return state;
       const rooms = state.upgrades.rooms ?? 0;
       if (rooms === 0) return state;
-      const income = rooms * 3 * 2;
+      const income = rooms;
       return {
         ...state,
         gold: state.gold + income,
-        gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold this minute.`),
+        gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold (passive income).`),
       };
     }
 
     case 'SELL_MATERIALS': {
       if (state.gamePhase !== 'playing') return state;
-      const { herbs, ore, relics } = state.materials;
+      const { herbs, ore, relics, bones, pelts, venom } = state.materials;
       const sellRates = state.upgrades.enchanter
-        ? { herbs: 6, ore: 12, relics: 24 }
+        ? { herbs: 6, ore: 12, relics: 24, bones: 16, pelts: 16, venom: 16 }
         : MATERIAL_SELL_RATES;
-      const total = herbs * sellRates.herbs + ore * sellRates.ore + relics * sellRates.relics;
+      const total =
+        herbs * sellRates.herbs + ore * sellRates.ore + relics * sellRates.relics +
+        bones * sellRates.bones + pelts * sellRates.pelts + venom * sellRates.venom;
       if (total === 0) return state;
       const parts: string[] = [];
       if (herbs > 0) parts.push(`${herbs} Herb${herbs > 1 ? 's' : ''}`);
       if (ore > 0) parts.push(`${ore} Ore`);
       if (relics > 0) parts.push(`${relics} Relic${relics > 1 ? 's' : ''}`);
+      if (bones > 0) parts.push(`${bones} Bone${bones > 1 ? 's' : ''}`);
+      if (pelts > 0) parts.push(`${pelts} Pelt${pelts > 1 ? 's' : ''}`);
+      if (venom > 0) parts.push(`${venom} Venom`);
       return {
         ...state,
         gold: state.gold + total,
-        materials: { herbs: 0, ore: 0, relics: 0 },
+        materials: { herbs: 0, ore: 0, relics: 0, bones: 0, pelts: 0, venom: 0 },
         gameLog: addLog(state.gameLog, `Sold ${parts.join(', ')} for ${total} gold!`),
       };
     }
@@ -872,7 +880,7 @@ export function useGameState() {
     dispatch({ type: 'NEW_GAME', freshState });
   }, []);
 
-  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => {
+  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => {
     dispatch({ type: 'HIRE_UPGRADE', upgrade });
   }, []);
 

@@ -71,7 +71,9 @@ export const QUEST_POOL = [
 
 export const MAX_PARTY_SIZE = 8;
 export const DISPATCH_COST = 10;
-export const ROSTER_CAPS = [5, 8, 12];
+export const ROSTER_BASE = 10;
+export const ROSTER_UPGRADE_SIZE = 5;
+export const ROSTER_UPGRADE_COST = 100;
 
 export const CLASS_STAT_COLORS: Record<string, string> = {
   hp: '#e74c3c',

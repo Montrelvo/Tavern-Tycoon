@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Upgrades, Materials } from '../game/types';
-import { ROSTER_CAPS } from '../game/constants';
+import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST } from '../game/constants';
 
 interface ManagementSceneProps {
   gold: number;
@@ -8,7 +8,7 @@ interface ManagementSceneProps {
   materials: Materials;
   rosterCount: number;
   tavernPrestige: 0 | 1 | 2 | 3;
-  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
+  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
   onSellMaterials: () => void;
 }
 
@@ -160,14 +160,18 @@ function RoomSlot({ n, active }: { n: number; active: boolean }) {
 }
 
 export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials }: ManagementSceneProps) {
-  const rosterMax = ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
+  const rosterMax = ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
   const roomIncomePm = rooms * 3 * 2;
-  const sellRates = upgrades.enchanter ? { herbs: 6, ore: 12, relics: 24 } : { herbs: 3, ore: 6, relics: 12 };
+  const sellRates = upgrades.enchanter
+    ? { herbs: 6, ore: 12, relics: 24, bones: 16, pelts: 16, venom: 16 }
+    : { herbs: 3, ore: 6, relics: 12, bones: 8, pelts: 8, venom: 8 };
   const totalMaterialValue =
-    materials.herbs * sellRates.herbs + materials.ore * sellRates.ore + materials.relics * sellRates.relics;
-  const hasMaterials = materials.herbs > 0 || materials.ore > 0 || materials.relics > 0;
+    materials.herbs * sellRates.herbs + materials.ore * sellRates.ore + materials.relics * sellRates.relics +
+    materials.bones * sellRates.bones + materials.pelts * sellRates.pelts + materials.venom * sellRates.venom;
+  const hasMaterials = materials.herbs > 0 || materials.ore > 0 || materials.relics > 0 ||
+    materials.bones > 0 || materials.pelts > 0 || materials.venom > 0;
   const prestige1Unlocked = tavernPrestige >= 1;
   const prestige2Unlocked = tavernPrestige >= 2;
   const prestige3Unlocked = tavernPrestige >= 3;
@@ -359,8 +363,12 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
             <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
               Excavate a basement to store materials brought back from quests —{' '}
               <span style={{ color: '#c8960c' }}>Herbs (3g)</span>,{' '}
-              <span style={{ color: '#aaa' }}>Ore (6g)</span>, and{' '}
-              <span style={{ color: '#9b59b6' }}>Relics (12g)</span> — that can be sold for gold.
+              <span style={{ color: '#aaa' }}>Ore (6g)</span>,{' '}
+              <span style={{ color: '#9b59b6' }}>Relics (12g)</span>, and monster parts —{' '}
+              <span style={{ color: '#c8b89a' }}>Bones</span>,{' '}
+              <span style={{ color: '#a0724a' }}>Pelts</span>,{' '}
+              <span style={{ color: '#2ecc71' }}>Venom</span>{' '}
+              (8g each) — that can be sold for gold.
               Adventurers have a ~40% chance to bring back materials on successful quests.
             </div>
             <BuyButton
@@ -388,8 +396,11 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
               )}
             </div>
 
-            {/* Material inventory */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            {/* Material inventory — crafting supplies */}
+            <div style={{ color: '#4a3a28', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Crafting Supplies
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               {[
                 { key: 'herbs' as const, label: 'Herbs', icon: '🌿', color: '#c8960c', rate: sellRates.herbs },
                 { key: 'ore' as const, label: 'Ore', icon: '⚙', color: '#aaa', rate: sellRates.ore },
@@ -400,12 +411,38 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                   background: materials[key] > 0 ? `rgba(${hexToRgbStr(color)},0.08)` : 'rgba(0,0,0,0.25)',
                   border: `1px solid ${materials[key] > 0 ? color + '55' : '#2a1a08'}`,
                   borderRadius: 8,
-                  padding: '10px 12px',
+                  padding: '8px 10px',
                   textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
-                  <div style={{ color, fontWeight: 'bold', fontSize: 20 }}>{materials[key]}</div>
-                  <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 18, marginBottom: 3 }}>{icon}</div>
+                  <div style={{ color, fontWeight: 'bold', fontSize: 18 }}>{materials[key]}</div>
+                  <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 1 }}>{label}</div>
+                  <div style={{ color: '#4a3a28', fontSize: 10 }}>{rate}g each</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Material inventory — monster parts */}
+            <div style={{ color: '#4a3a28', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Monster Parts
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {[
+                { key: 'bones' as const, label: 'Bones', icon: '🦴', color: '#c8b89a', rate: sellRates.bones },
+                { key: 'pelts' as const, label: 'Pelts', icon: '🐾', color: '#a0724a', rate: sellRates.pelts },
+                { key: 'venom' as const, label: 'Venom', icon: '🧪', color: '#2ecc71', rate: sellRates.venom },
+              ].map(({ key, label, icon, color, rate }) => (
+                <div key={key} style={{
+                  flex: 1,
+                  background: materials[key] > 0 ? `rgba(${hexToRgbStr(color)},0.08)` : 'rgba(0,0,0,0.25)',
+                  border: `1px solid ${materials[key] > 0 ? color + '55' : '#2a1a08'}`,
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 3 }}>{icon}</div>
+                  <div style={{ color, fontWeight: 'bold', fontSize: 18 }}>{materials[key]}</div>
+                  <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 1 }}>{label}</div>
                   <div style={{ color: '#4a3a28', fontSize: 10 }}>{rate}g each</div>
                 </div>
               ))}
@@ -483,7 +520,10 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
             An enchanter doubles the sell value of all materials:{' '}
             <span style={{ color: '#c8960c' }}>Herbs → 6g</span>,{' '}
             <span style={{ color: '#aaa' }}>Ore → 12g</span>,{' '}
-            <span style={{ color: '#9b59b6' }}>Relics → 24g</span>.
+            <span style={{ color: '#9b59b6' }}>Relics → 24g</span>,{' '}
+            <span style={{ color: '#c8b89a' }}>Bones → 16g</span>,{' '}
+            <span style={{ color: '#a0724a' }}>Pelts → 16g</span>,{' '}
+            <span style={{ color: '#2ecc71' }}>Venom → 16g</span>.
           </div>
           {upgrades.enchanter ? (
             <PurchasedBadge label="Enchanter in residence" />
@@ -535,58 +575,28 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            {[
-              { slots: 1 as const, label: 'Small Crew', max: 5, cost: null },
-              { slots: 2 as const, label: 'Guild Band', max: 8, cost: 100 },
-              { slots: 3 as const, label: 'Full Company', max: 12, cost: 200 },
-            ].map(tier => {
-              const active = upgrades.rosterSlots === tier.slots;
-              const purchased = (upgrades.rosterSlots ?? 1) >= tier.slots;
-              return (
-                <div
-                  key={tier.slots}
-                  style={{
-                    flex: 1,
-                    background: active ? 'rgba(200,150,12,0.12)' : purchased ? 'rgba(46,204,113,0.06)' : 'rgba(0,0,0,0.2)',
-                    border: active ? '2px solid #c8960c' : purchased ? '1px solid #2ecc7166' : '1px solid #2a1a08',
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontSize: 18, marginBottom: 4 }}>
-                    {purchased ? (active ? '⭐' : '✓') : '🔒'}
-                  </div>
-                  <div style={{ color: active ? '#ffd700' : purchased ? '#2ecc71' : '#4a3a28', fontWeight: 'bold', fontSize: 13 }}>
-                    {tier.label}
-                  </div>
-                  <div style={{ color: '#7a6a5a', fontSize: 12, margin: '2px 0' }}>
-                    Max {tier.max} adventurers
-                  </div>
-                  {tier.cost && !purchased && (
-                    <div style={{ color: '#c8960c', fontSize: 12 }}>{tier.cost}g</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ color: '#7a6a5a', fontSize: 13 }}>
-              Current roster: <span style={{ color: '#e8d5a0' }}>{rosterCount}</span> / {rosterMax}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(upgrades.rosterSlots ?? 1) < 2 && (
-                <BuyButton label="Expand to 8 slots" cost={100} canAfford={gold >= 100} onClick={() => onHireUpgrade('roster_2')} />
-              )}
-              {(upgrades.rosterSlots ?? 1) === 2 && (
-                <BuyButton label="Expand to 12 slots" cost={200} canAfford={gold >= 200} onClick={() => onHireUpgrade('roster_3')} />
-              )}
-              {(upgrades.rosterSlots ?? 1) === 3 && (
-                <PurchasedBadge label="Max capacity reached" />
-              )}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 16,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid #2a1a08',
+            borderRadius: 8, padding: '12px 16px', marginBottom: 16,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>
+                {rosterMax} adventurer slots
+              </div>
+              <div style={{ color: '#7a6a5a', fontSize: 12, marginTop: 2 }}>
+                Base 10 + {(upgrades.rosterSlots ?? 0)} upgrade{(upgrades.rosterSlots ?? 0) !== 1 ? 's' : ''} × {ROSTER_UPGRADE_SIZE}
+              </div>
+              <div style={{ color: '#7a6a5a', fontSize: 12, marginTop: 4 }}>
+                Current roster: <span style={{ color: '#e8d5a0' }}>{rosterCount}</span> / {rosterMax}
+              </div>
             </div>
+            <BuyButton
+              label={`+${ROSTER_UPGRADE_SIZE} slots`}
+              cost={ROSTER_UPGRADE_COST}
+              canAfford={gold >= ROSTER_UPGRADE_COST}
+              onClick={() => onHireUpgrade('roster_expand')}
+            />
           </div>
         </div>
       </div>
