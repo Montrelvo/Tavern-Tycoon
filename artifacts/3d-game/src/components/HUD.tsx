@@ -1386,7 +1386,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, partyCap, onSetP
                 quest={quest}
                 availableAdventurers={idleRecruits}
                 partyCap={partyCap}
-                onSetPartyCap={setPartyCap}
+                onSetPartyCap={onSetPartyCap}
                 onDispatch={onDispatch}
                 onReject={onRejectQuest}
               />

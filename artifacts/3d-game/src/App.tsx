@@ -346,7 +346,7 @@ export default function App() {
         <WebGLErrorBoundary>
           <Suspense fallback={<LoadingScreen />}>
             <Canvas
-              shadows
+              shadows={{ type: THREE.PCFShadowMap }}
               camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
               style={{ width: '100vw', height: '100vh' }}
               gl={{ antialias: true }}

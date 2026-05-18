@@ -346,7 +346,7 @@ function loadFromStorage(): GameState {
     const mergedUpgrades = {
       ...DEFAULT_UPGRADES,
       ...(parsed.upgrades ?? {}),
-      rosterSlots: Math.max(0, (parsed.upgrades?.rosterSlots ?? 1) - 1),
+      rosterSlots: parsed.upgrades?.rosterSlots ?? 0,
       rooms: (parsed.upgrades?.rooms ?? 0) as 0 | 1 | 2,
       basement: parsed.upgrades?.basement ?? false,
       trainingGrounds: parsed.upgrades?.trainingGrounds ?? false,
