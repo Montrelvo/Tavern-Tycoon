@@ -95,13 +95,16 @@ function SceneCameraController({
   return null;
 }
 
-function SceneNav({ activeScene, onSetScene, upgradePointAlert, isMuted, onToggleMute }: {
+function SceneNav({ activeScene, onSetScene, upgradePointAlert, isMuted, onToggleMute, volume, onVolumeChange }: {
   activeScene: ActiveScene;
   onSetScene: (s: ActiveScene) => void;
   upgradePointAlert: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
 }) {
+  const effectivePct = Math.round((isMuted ? 0 : volume) * 100);
   return (
     <div style={{
       position: 'fixed',
@@ -161,30 +164,52 @@ function SceneNav({ activeScene, onSetScene, upgradePointAlert, isMuted, onToggl
           </button>
         );
       })}
-      <button
-        onClick={onToggleMute}
-        title={isMuted ? 'Unmute sounds' : 'Mute sounds'}
-        style={{
-          position: 'absolute',
-          right: 12,
-          background: 'none',
-          border: '1px solid #3d2410',
-          borderRadius: 6,
-          color: isMuted ? '#5a4a38' : '#a08060',
-          fontSize: 16,
-          lineHeight: 1,
-          width: 30,
-          height: 26,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'color 0.15s, border-color 0.15s',
-          padding: 0,
-        }}
-      >
-        {isMuted ? '🔇' : '🔊'}
-      </button>
+      <div style={{
+        position: 'absolute',
+        right: 12,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}>
+        <button
+          onClick={onToggleMute}
+          title={isMuted ? 'Unmute sounds' : 'Mute sounds'}
+          style={{
+            background: 'none',
+            border: '1px solid #3d2410',
+            borderRadius: 6,
+            color: isMuted ? '#5a4a38' : '#a08060',
+            fontSize: 16,
+            lineHeight: 1,
+            width: 30,
+            height: 26,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'color 0.15s, border-color 0.15s',
+            padding: 0,
+          }}
+        >
+          {isMuted ? '🔇' : '🔊'}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={isMuted ? 0 : Math.round(volume * 100)}
+          onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
+          title={`Volume: ${effectivePct}%`}
+          aria-label="Master volume"
+          style={{
+            width: 90,
+            height: 4,
+            accentColor: '#a0631e',
+            cursor: 'pointer',
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -217,7 +242,7 @@ export default function App() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const orbitRef = useRef<any>(null);
-  const { startAmbience, playSound, toggleMute, isMuted } = useTavernAmbience();
+  const { startAmbience, playSound, toggleMute, isMuted, volume, setVolume } = useTavernAmbience();
   const ambienceStarted = useRef(false);
 
   const handleFirstInteraction = () => {
@@ -307,6 +332,8 @@ export default function App() {
         upgradePointAlert={upgradePointAlert}
         isMuted={isMuted}
         onToggleMute={toggleMute}
+        volume={volume}
+        onVolumeChange={setVolume}
       />
 
       {/*

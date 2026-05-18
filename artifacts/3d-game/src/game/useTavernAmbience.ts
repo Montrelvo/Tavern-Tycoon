@@ -2,6 +2,31 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 
 export type SoundCue = 'recruit' | 'questComplete' | 'questFail' | 'goldDrop' | 'levelUp';
 
+const VOLUME_STORAGE_KEY = 'tavern-master-volume';
+const MUTED_STORAGE_KEY = 'tavern-muted';
+
+function loadStoredVolume(): number {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = window.localStorage.getItem(VOLUME_STORAGE_KEY);
+    if (raw == null) return 1;
+    const parsed = parseFloat(raw);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.min(1, Math.max(0, parsed));
+  } catch {
+    return 1;
+  }
+}
+
+function loadStoredMuted(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(MUTED_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function createCracklingFire(ctx: AudioContext, master: GainNode) {
   const bufferSize = ctx.sampleRate * 2;
   const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -86,8 +111,22 @@ export function useTavernAmbience() {
   const ctxRef = useRef<AudioContext | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const startedRef = useRef(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const isMutedRef = useRef(false);
+  const [volume, setVolumeState] = useState<number>(() => loadStoredVolume());
+  const [isMuted, setIsMuted] = useState<boolean>(() => loadStoredMuted());
+  const volumeRef = useRef(volume);
+  const isMutedRef = useRef(isMuted);
+
+  const effectiveGain = useCallback(() => {
+    return isMutedRef.current ? 0 : volumeRef.current;
+  }, []);
+
+  const applyGain = useCallback(() => {
+    const master = masterRef.current;
+    const ctx = ctxRef.current;
+    if (master && ctx) {
+      master.gain.setTargetAtTime(effectiveGain(), ctx.currentTime, 0.05);
+    }
+  }, [effectiveGain]);
 
   const startAmbience = useCallback(() => {
     if (startedRef.current) return;
@@ -97,24 +136,47 @@ export function useTavernAmbience() {
     ctxRef.current = ctx;
 
     const master = ctx.createGain();
-    master.gain.setValueAtTime(isMutedRef.current ? 0 : 1, ctx.currentTime);
+    master.gain.setValueAtTime(effectiveGain(), ctx.currentTime);
     master.connect(ctx.destination);
     masterRef.current = master;
 
     createTavernMurmur(ctx, master);
     createCracklingFire(ctx, master);
-  }, []);
+  }, [effectiveGain]);
 
   const toggleMute = useCallback(() => {
-    const master = masterRef.current;
-    const ctx = ctxRef.current;
     const next = !isMutedRef.current;
     isMutedRef.current = next;
     setIsMuted(next);
-    if (master && ctx) {
-      master.gain.setTargetAtTime(next ? 0 : 1, ctx.currentTime, 0.05);
+    try {
+      window.localStorage.setItem(MUTED_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      // ignore
     }
-  }, []);
+    applyGain();
+  }, [applyGain]);
+
+  const setVolume = useCallback((next: number) => {
+    const clamped = Math.min(1, Math.max(0, next));
+    volumeRef.current = clamped;
+    setVolumeState(clamped);
+    try {
+      window.localStorage.setItem(VOLUME_STORAGE_KEY, String(clamped));
+    } catch {
+      // ignore
+    }
+    // Adjusting volume while muted automatically unmutes for a smoother UX.
+    if (isMutedRef.current && clamped > 0) {
+      isMutedRef.current = false;
+      setIsMuted(false);
+      try {
+        window.localStorage.setItem(MUTED_STORAGE_KEY, '0');
+      } catch {
+        // ignore
+      }
+    }
+    applyGain();
+  }, [applyGain]);
 
   const playSound = useCallback((type: SoundCue) => {
     const ctx = ctxRef.current;
@@ -256,5 +318,5 @@ export function useTavernAmbience() {
     };
   }, []);
 
-  return { startAmbience, playSound, toggleMute, isMuted };
+  return { startAmbience, playSound, toggleMute, isMuted, volume, setVolume };
 }
