@@ -153,7 +153,6 @@ export const QUEST_POOL: Array<{
 ];
 
 export const MAX_PARTY_SIZE = 8;
-export const DISPATCH_COST = 10;
 export const ROSTER_BASE = 10;
 export const ROSTER_UPGRADE_SIZE = 5;
 export const ROSTER_UPGRADE_COST = 100;
@@ -260,6 +259,7 @@ export interface GearRecipe {
   description: string;
   cost: { herbs: number; ore: number };
   effects: Array<{ stat: 'attack' | 'defense' | 'maxHp'; amount: number }>;
+  requiresGuildHall?: boolean;
 }
 
 export const GEAR_RECIPES: GearRecipe[] = [
@@ -294,14 +294,16 @@ export const GEAR_RECIPES: GearRecipe[] = [
     description: 'A potent herbal draught that hardens sinew and floods veins with vigour.',
     cost: { herbs: 3, ore: 0 },
     effects: [{ stat: 'maxHp', amount: 35 }],
+    requiresGuildHall: true,
   },
   {
     id: 'war_kit',
     name: 'War Kit',
     icon: '⚔️',
-    description: 'Ore-tipped weapons and herbal combat rations prepared for every fighter in the party.',
+    description: 'Ore-tipped weapons and herbal combat rations — a complete combat loadout.',
     cost: { herbs: 2, ore: 2 },
     effects: [{ stat: 'attack', amount: 2 }, { stat: 'maxHp', amount: 15 }],
+    requiresGuildHall: true,
   },
   {
     id: 'bulwark_set',
@@ -310,5 +312,6 @@ export const GEAR_RECIPES: GearRecipe[] = [
     description: 'Reinforced pauldrons and medicinal poultices that make adventurers a wall of steel and herb.',
     cost: { herbs: 2, ore: 3 },
     effects: [{ stat: 'defense', amount: 3 }, { stat: 'maxHp', amount: 20 }],
+    requiresGuildHall: true,
   },
 ];

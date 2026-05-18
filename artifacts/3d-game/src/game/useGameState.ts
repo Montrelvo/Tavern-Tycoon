@@ -831,7 +831,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           ...state,
           gold: state.gold - 300,
           upgrades: { ...state.upgrades, guildHall: true },
-          gameLog: addLog(state.gameLog, 'Guild Hall established! Quest dispatch cost is halved.'),
+          gameLog: addLog(state.gameLog, 'Guild Hall established! Advanced crafting recipes are now available.'),
         };
       }
       return state;

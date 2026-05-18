@@ -643,11 +643,12 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
               {/* Recipe cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {GEAR_RECIPES.map(recipe => {
+                  const guildLocked = recipe.requiresGuildHall && !upgrades.guildHall;
                   const canAffordHerbs = materials.herbs >= recipe.cost.herbs;
                   const canAffordOre = materials.ore >= recipe.cost.ore;
                   const canAfford = canAffordHerbs && canAffordOre;
                   const hasRecruited = recruitedCount > 0;
-                  const canCraft = canAfford && hasRecruited;
+                  const canCraft = !guildLocked && canAfford && hasRecruited;
 
                   return (
                     <div
@@ -656,14 +657,19 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: 12,
-                        background: canCraft
-                          ? 'rgba(200,150,12,0.06)'
-                          : 'rgba(0,0,0,0.2)',
-                        border: canCraft
-                          ? '1px solid #c8960c44'
-                          : '1px solid #2a1a08',
+                        background: guildLocked
+                          ? 'rgba(0,0,0,0.1)'
+                          : canCraft
+                            ? 'rgba(200,150,12,0.06)'
+                            : 'rgba(0,0,0,0.2)',
+                        border: guildLocked
+                          ? '1px solid #1e1208'
+                          : canCraft
+                            ? '1px solid #c8960c44'
+                            : '1px solid #2a1a08',
                         borderRadius: 8,
                         padding: '10px 12px',
+                        opacity: guildLocked ? 0.45 : 1,
                         transition: 'all 0.15s',
                       }}
                     >
@@ -674,8 +680,19 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
 
                       {/* Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>
-                          {recipe.name}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>
+                            {recipe.name}
+                          </div>
+                          {guildLocked && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 'bold', color: '#f1c40f',
+                              background: 'rgba(241,196,15,0.12)', border: '1px solid rgba(241,196,15,0.3)',
+                              borderRadius: 3, padding: '1px 5px', letterSpacing: 0.5,
+                            }}>
+                              🏛 Guild Hall
+                            </span>
+                          )}
                         </div>
                         <div style={{ color: '#7a6a5a', fontSize: 11, lineHeight: 1.4, marginBottom: 7 }}>
                           {recipe.description}
@@ -766,7 +783,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                           alignSelf: 'center',
                         }}
                       >
-                        Equip to…
+                        {guildLocked ? '🔒' : 'Equip to…'}
                       </button>
                     </div>
                   );
@@ -845,13 +862,14 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                 <div style={sectionTitle}>Guild Hall</div>
                 <PrestigeTierBadge tier={tavernPrestige} required={3} />
               </div>
-              <div style={sectionSubtitle}>An official Guild charter lowers operational costs</div>
+              <div style={sectionSubtitle}>Unlock master-tier crafting recipes for your adventurers</div>
             </div>
           </div>
           <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
-            Establish a Guild Hall that halves the dispatch cost —{' '}
-            from <strong style={{ color: '#e74c3c' }}>10g</strong> down to{' '}
-            <strong style={{ color: '#2ecc71' }}>5g</strong> per quest.
+            Establish a Guild Hall to unlock three advanced crafting recipes —{' '}
+            <strong style={{ color: '#e8d5a0' }}>Fortifying Tonic</strong>,{' '}
+            <strong style={{ color: '#e8d5a0' }}>War Kit</strong>, and{' '}
+            <strong style={{ color: '#e8d5a0' }}>Bulwark Set</strong> — for significantly stronger stat bonuses.
           </div>
           {upgrades.guildHall ? (
             <PurchasedBadge label="Guild Hall established" />
