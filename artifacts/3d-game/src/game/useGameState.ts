@@ -387,7 +387,7 @@ function loadFromStorage(): GameState {
   }
 }
 
-function saveToStorage(state: GameState) {
+function saveToStorage(state: GameState): boolean {
   try {
     const toSave: GameState = {
       ...state,
@@ -398,8 +398,9 @@ function saveToStorage(state: GameState) {
       showQuestBoard: false,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(toSave));
+    return true;
   } catch {
-    // ignore storage errors
+    return false;
   }
 }
 
@@ -1278,6 +1279,11 @@ export function useGameState() {
     dispatch({ type: 'CRAFT_GEAR', recipeId, adventurerId });
   }, []);
 
+  const manualSave = useCallback((): number | null => {
+    const ok = saveToStorage(stateRef.current);
+    return ok ? Date.now() : null;
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -1296,5 +1302,6 @@ export function useGameState() {
     acceptBounty,
     abandonBounty,
     craftGear,
+    manualSave,
   };
 }

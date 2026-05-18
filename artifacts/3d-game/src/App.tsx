@@ -182,6 +182,7 @@ export default function App() {
     acceptBounty,
     abandonBounty,
     craftGear,
+    manualSave,
   } = useGameState();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -305,6 +306,7 @@ export default function App() {
             onRejectBounty={rejectBounty}
             onPlaySound={playSound}
             onNewGame={newGame}
+            onSave={manualSave}
           />
         )}
 

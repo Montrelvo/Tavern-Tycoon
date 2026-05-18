@@ -133,6 +133,7 @@ interface HUDProps {
   onRejectBounty: (bountyId: string) => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
+  onSave: () => number | null;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -1571,7 +1572,7 @@ export function HUD({
   questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRejectQuest,
   onAcceptBounty, onAbandonBounty, onRejectBounty, onPlaySound,
-  onNewGame,
+  onNewGame, onSave,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
@@ -1586,6 +1587,24 @@ export function HUD({
   const shownNotificationIdRef = useRef<number | null>(null);
   const idleRecruits = adventurers.filter(a => a.status === 'recruited');
   const [partyCap, setPartyCap] = useState<number>(1);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveFlash, setSaveFlash] = useState(false);
+  const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
+    };
+  }, []);
+
+  const handleSave = () => {
+    const ts = onSave();
+    if (ts === null) return;
+    setSavedAt(ts);
+    setSaveFlash(true);
+    if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
+    saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 1800);
+  };
 
   useEffect(() => {
     const count = idleRecruits.length;
@@ -1667,27 +1686,78 @@ export function HUD({
         </div>
       </div>
 
-      {/* New Game button — fixed top-right, outside all panels */}
-      <button
-        onClick={onNewGame}
-        title="Wipe save and start a new game"
-        style={{
-          position: 'fixed', top: 12, right: 16,
-          background: 'rgba(60,20,5,0.8)',
-          border: '1px solid #5c3315',
-          borderRadius: 5,
-          color: '#7a6a5a',
-          fontFamily: 'serif',
-          fontSize: 10,
-          padding: '2px 7px',
-          cursor: 'pointer',
-          letterSpacing: 0.3,
-          pointerEvents: 'auto',
-          zIndex: 110,
-        }}
-      >
-        New Game
-      </button>
+      {/* Save + New Game buttons — fixed top-right */}
+      <div style={{
+        position: 'fixed', top: 12, right: 16,
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+        pointerEvents: 'auto',
+        zIndex: 110,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Last saved timestamp */}
+          {savedAt && !saveFlash && (
+            <span style={{
+              color: '#4a3a28',
+              fontFamily: 'serif',
+              fontSize: 9,
+              fontStyle: 'italic',
+              letterSpacing: 0.2,
+            }}>
+              Saved {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {/* "Saved!" flash */}
+          {saveFlash && (
+            <span style={{
+              color: '#2ecc71',
+              fontFamily: 'serif',
+              fontSize: 10,
+              fontWeight: 'bold',
+              letterSpacing: 0.3,
+              animation: 'none',
+              opacity: 1,
+            }}>
+              ✓ Saved!
+            </span>
+          )}
+          {/* Save button */}
+          <button
+            onClick={handleSave}
+            title="Save your progress"
+            style={{
+              background: 'rgba(10,40,15,0.85)',
+              border: '1px solid #2a6a35',
+              borderRadius: 5,
+              color: '#5aaa6a',
+              fontFamily: 'serif',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            Save
+          </button>
+          {/* New Game button */}
+          <button
+            onClick={onNewGame}
+            title="Wipe save and start a new game"
+            style={{
+              background: 'rgba(60,20,5,0.8)',
+              border: '1px solid #5c3315',
+              borderRadius: 5,
+              color: '#7a6a5a',
+              fontFamily: 'serif',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            New Game
+          </button>
+        </div>
+      </div>
 
       {/* Left panel */}
       <LeftPanel
