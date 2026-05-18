@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 export type SoundCue = 'recruit' | 'questComplete' | 'questFail';
 
@@ -86,6 +86,8 @@ export function useTavernAmbience() {
   const ctxRef = useRef<AudioContext | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const startedRef = useRef(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const isMutedRef = useRef(false);
 
   const startAmbience = useCallback(() => {
     if (startedRef.current) return;
@@ -95,7 +97,7 @@ export function useTavernAmbience() {
     ctxRef.current = ctx;
 
     const master = ctx.createGain();
-    master.gain.setValueAtTime(1, ctx.currentTime);
+    master.gain.setValueAtTime(isMutedRef.current ? 0 : 1, ctx.currentTime);
     master.connect(ctx.destination);
     masterRef.current = master;
 
@@ -103,14 +105,26 @@ export function useTavernAmbience() {
     createCracklingFire(ctx, master);
   }, []);
 
+  const toggleMute = useCallback(() => {
+    const master = masterRef.current;
+    const ctx = ctxRef.current;
+    const next = !isMutedRef.current;
+    isMutedRef.current = next;
+    setIsMuted(next);
+    if (master && ctx) {
+      master.gain.setTargetAtTime(next ? 0 : 1, ctx.currentTime, 0.05);
+    }
+  }, []);
+
   const playSound = useCallback((type: SoundCue) => {
     const ctx = ctxRef.current;
     if (!ctx) return;
 
+    const destination = masterRef.current ?? ctx.destination;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.18, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    gain.connect(ctx.destination);
+    gain.connect(destination);
 
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
@@ -139,5 +153,5 @@ export function useTavernAmbience() {
     };
   }, []);
 
-  return { startAmbience, playSound };
+  return { startAmbience, playSound, toggleMute, isMuted };
 }

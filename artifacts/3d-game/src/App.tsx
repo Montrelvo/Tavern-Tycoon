@@ -95,10 +95,12 @@ function SceneCameraController({
   return null;
 }
 
-function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
+function SceneNav({ activeScene, onSetScene, upgradePointAlert, isMuted, onToggleMute }: {
   activeScene: ActiveScene;
   onSetScene: (s: ActiveScene) => void;
   upgradePointAlert: boolean;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }) {
   return (
     <div style={{
@@ -159,6 +161,30 @@ function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
           </button>
         );
       })}
+      <button
+        onClick={onToggleMute}
+        title={isMuted ? 'Unmute sounds' : 'Mute sounds'}
+        style={{
+          position: 'absolute',
+          right: 12,
+          background: 'none',
+          border: '1px solid #3d2410',
+          borderRadius: 6,
+          color: isMuted ? '#5a4a38' : '#a08060',
+          fontSize: 16,
+          lineHeight: 1,
+          width: 30,
+          height: 26,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'color 0.15s, border-color 0.15s',
+          padding: 0,
+        }}
+      >
+        {isMuted ? '🔇' : '🔊'}
+      </button>
     </div>
   );
 }
@@ -189,7 +215,7 @@ export default function App() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const orbitRef = useRef<any>(null);
-  const { startAmbience, playSound } = useTavernAmbience();
+  const { startAmbience, playSound, toggleMute, isMuted } = useTavernAmbience();
   const ambienceStarted = useRef(false);
 
   const handleFirstInteraction = () => {
@@ -228,6 +254,8 @@ export default function App() {
         activeScene={activeScene}
         onSetScene={setActiveScene}
         upgradePointAlert={upgradePointAlert}
+        isMuted={isMuted}
+        onToggleMute={toggleMute}
       />
 
       {/*
