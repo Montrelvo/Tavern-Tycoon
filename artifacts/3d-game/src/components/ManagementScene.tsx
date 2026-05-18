@@ -302,7 +302,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
       position: 'fixed',
       inset: 0,
       top: 40,
-      background: '#0d0700',
+      background: 'transparent',
       overflowY: 'auto',
       fontFamily: 'serif',
       zIndex: 10,
@@ -313,8 +313,12 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
         padding: '24px 20px 48px',
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ color: '#e8d5a0', margin: 0, fontSize: 24, letterSpacing: 1 }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
+          background: 'rgba(8,4,1,0.72)', borderRadius: 10, padding: '12px 16px',
+          backdropFilter: 'blur(6px)', border: '1px solid rgba(92,51,21,0.4)',
+        }}>
+          <h1 style={{ color: '#e8d5a0', margin: 0, fontSize: 24, letterSpacing: 1, textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}>
             Tavern Management
           </h1>
           <div style={{

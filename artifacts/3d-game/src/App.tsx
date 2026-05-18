@@ -1,13 +1,20 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Suspense, Component, type ReactNode, useEffect, useRef, useState } from 'react';
 import { TavernScene } from './components/TavernScene';
 import { HUD } from './components/HUD';
 import { ManagementScene } from './components/ManagementScene';
+import { OwnerRoomScene } from './components/OwnerRoomScene';
 import { RecruitsScene } from './components/RecruitsScene';
 import { useGameState } from './game/useGameState';
 import { useTavernAmbience } from './game/useTavernAmbience';
+import * as THREE from 'three';
 import './index.css';
+
+type OrbitControlsRef = {
+  target: THREE.Vector3;
+  update: () => void;
+};
 
 class WebGLErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
   state = { error: false };
@@ -54,6 +61,39 @@ const SCENE_LABELS: Record<ActiveScene, string> = {
   management: '🏗 Manage',
   recruits: '🧙 Recruits',
 };
+
+/** Adjusts the camera position when switching between tavern and owner's room */
+function SceneCameraController({
+  activeScene,
+  orbitRef,
+}: {
+  activeScene: ActiveScene;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  orbitRef: React.RefObject<any>;
+}) {
+  const { camera } = useThree();
+  const perspCamera = camera as THREE.PerspectiveCamera;
+
+  useEffect(() => {
+    if (activeScene === 'tavern') {
+      camera.position.set(0, 14, 12);
+      perspCamera.fov = 45;
+      perspCamera.updateProjectionMatrix();
+      const ctrl = orbitRef.current;
+      if (ctrl) {
+        ctrl.target.set(0, 0, 0);
+        ctrl.update();
+      }
+    } else if (activeScene === 'management') {
+      camera.position.set(-1.5, 2.8, 4.5);
+      camera.lookAt(0.5, 1.0, -2.0);
+      perspCamera.fov = 50;
+      perspCamera.updateProjectionMatrix();
+    }
+  }, [activeScene, camera, perspCamera, orbitRef]);
+
+  return null;
+}
 
 function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
   activeScene: ActiveScene;
@@ -144,6 +184,8 @@ export default function App() {
     craftGear,
   } = useGameState();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orbitRef = useRef<any>(null);
   const { startAmbience, playSound } = useTavernAmbience();
   const ambienceStarted = useRef(false);
 
@@ -172,6 +214,8 @@ export default function App() {
   const rosterCount = recruited.length;
   const upgradePointAlert = recruited.some(a => (a.upgradePoints ?? 0) > 0);
 
+  const showCanvas = activeScene === 'tavern' || activeScene === 'management';
+
   return (
     <div
       style={{ width: '100vw', height: '100vh', background: '#0d0700', overflow: 'hidden' }}
@@ -183,8 +227,13 @@ export default function App() {
         upgradePointAlert={upgradePointAlert}
       />
 
-      {/* Tavern 3D scene — always mounted to preserve WebGL state, hidden when not active */}
-      <div style={{ display: activeScene === 'tavern' ? 'block' : 'none' }}>
+      {/*
+        Single shared Canvas for both Tavern and Owner's Room scenes.
+        Kept always mounted (display:block/none) when on a 3D scene so the
+        WebGL context is never torn down between tavern ↔ management transitions.
+        Both 3D scenes live inside this one Canvas, toggled via Three.js `visible`.
+      */}
+      <div style={{ display: showCanvas ? 'block' : 'none' }}>
         <WebGLErrorBoundary>
           <Suspense fallback={<LoadingScreen />}>
             <Canvas
@@ -193,72 +242,90 @@ export default function App() {
               style={{ width: '100vw', height: '100vh' }}
               gl={{ antialias: true }}
               onClick={() => {
-                if (state.selectedAdventurerId) selectAdventurer(null);
+                if (activeScene === 'tavern' && state.selectedAdventurerId) {
+                  selectAdventurer(null);
+                }
               }}
             >
+              <SceneCameraController activeScene={activeScene} orbitRef={orbitRef} />
+
               <OrbitControls
+                ref={orbitRef}
                 target={[0, 0, 0]}
                 maxPolarAngle={Math.PI / 2.4}
                 minPolarAngle={Math.PI / 6}
                 minDistance={8}
                 maxDistance={22}
                 enablePan={false}
+                enabled={activeScene === 'tavern'}
                 makeDefault
               />
-              <TavernScene
-                adventurers={state.adventurers}
-                selectedAdventurerId={state.selectedAdventurerId}
-                onSelectAdventurer={selectAdventurer}
-                onAdventurerArrived={markAdventurerArrived}
-                upgrades={state.upgrades}
-              />
+
+              {/* Tavern scene — always mounted, visible only when active */}
+              <group visible={activeScene === 'tavern'}>
+                <TavernScene
+                  adventurers={state.adventurers}
+                  selectedAdventurerId={state.selectedAdventurerId}
+                  onSelectAdventurer={selectAdventurer}
+                  onAdventurerArrived={markAdventurerArrived}
+                  upgrades={state.upgrades}
+                />
+              </group>
+
+              {/* Owner's Room scene — always mounted, visible only when management is active */}
+              <group visible={activeScene === 'management'}>
+                <OwnerRoomScene />
+              </group>
             </Canvas>
           </Suspense>
         </WebGLErrorBoundary>
 
-        <HUD
-          gold={state.gold}
-          adventurers={state.adventurers}
-          quests={state.quests}
-          bounties={state.bounties ?? []}
-          gameLog={state.gameLog}
-          gamePhase={state.gamePhase}
-          selectedAdventurerId={state.selectedAdventurerId}
-          showQuestBoard={state.showQuestBoard}
-          upgrades={state.upgrades}
-          questsCompleted={state.questsCompleted}
-          tavernPrestige={state.tavernPrestige}
-          lastDropNotification={state.lastDropNotification ?? null}
-          onRecruit={recruitAdventurer}
-          onSelectAdventurer={selectAdventurer}
-          onToggleQuestBoard={toggleQuestBoard}
-          onDispatchQuest={dispatchQuest}
-          onRefreshQuests={refreshQuests}
-          onAcceptBounty={acceptBounty}
-          onAbandonBounty={abandonBounty}
-          onRefreshBounties={refreshBounties}
-          onPlaySound={playSound}
-          onNewGame={newGame}
-        />
+        {/* Tavern HUD overlay */}
+        {activeScene === 'tavern' && (
+          <HUD
+            gold={state.gold}
+            adventurers={state.adventurers}
+            quests={state.quests}
+            bounties={state.bounties ?? []}
+            gameLog={state.gameLog}
+            gamePhase={state.gamePhase}
+            selectedAdventurerId={state.selectedAdventurerId}
+            showQuestBoard={state.showQuestBoard}
+            upgrades={state.upgrades}
+            questsCompleted={state.questsCompleted}
+            tavernPrestige={state.tavernPrestige}
+            lastDropNotification={state.lastDropNotification ?? null}
+            onRecruit={recruitAdventurer}
+            onSelectAdventurer={selectAdventurer}
+            onToggleQuestBoard={toggleQuestBoard}
+            onDispatchQuest={dispatchQuest}
+            onRefreshQuests={refreshQuests}
+            onAcceptBounty={acceptBounty}
+            onAbandonBounty={abandonBounty}
+            onRefreshBounties={refreshBounties}
+            onPlaySound={playSound}
+            onNewGame={newGame}
+          />
+        )}
+
+        {/* Management UI overlaid as HUD on top of the Owner's Room 3D scene */}
+        {activeScene === 'management' && (
+          <ManagementScene
+            gold={state.gold}
+            upgrades={state.upgrades}
+            materials={state.materials}
+            rosterCount={rosterCount}
+            tavernPrestige={state.tavernPrestige}
+            onHireUpgrade={hireUpgrade}
+            onSellMaterials={sellMaterials}
+            onCraftGear={craftGear}
+            recruitedCount={recruited.length}
+            recruitedAdventurers={recruited}
+          />
+        )}
       </div>
 
-      {/* Management scene */}
-      {activeScene === 'management' && (
-        <ManagementScene
-          gold={state.gold}
-          upgrades={state.upgrades}
-          materials={state.materials}
-          rosterCount={rosterCount}
-          tavernPrestige={state.tavernPrestige}
-          onHireUpgrade={hireUpgrade}
-          onSellMaterials={sellMaterials}
-          onCraftGear={craftGear}
-          recruitedCount={recruited.length}
-          recruitedAdventurers={recruited}
-        />
-      )}
-
-      {/* Recruits scene */}
+      {/* Recruits scene — pure 2D, no canvas needed */}
       {activeScene === 'recruits' && (
         <RecruitsScene
           adventurers={state.adventurers}
