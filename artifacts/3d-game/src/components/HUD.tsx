@@ -1371,7 +1371,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, partyCap, onSetP
                 quest={quest}
                 availableAdventurers={idleRecruits}
                 partyCap={partyCap}
-                onSetPartyCap={setPartyCap}
+                onSetPartyCap={onSetPartyCap}
                 onDispatch={onDispatch}
                 onReject={onRejectQuest}
               />
@@ -1586,6 +1586,7 @@ export function HUD({
   const shownNotificationIdRef = useRef<number | null>(null);
   const idleRecruits = adventurers.filter(a => a.status === 'recruited');
   const [partyCap, setPartyCap] = useState<number>(1);
+  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
 
   useEffect(() => {
     const count = idleRecruits.length;
@@ -1615,22 +1616,88 @@ export function HUD({
 
   if (gamePhase === 'lost') {
     return (
-      <div style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300,
-        fontFamily: 'serif',
-      }}>
-        <div style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 72, marginBottom: 8 }}>&#x1F480;</div>
-          <h1 style={{ color: '#e74c3c', fontSize: 40, margin: '0 0 12px' }}>Defeated</h1>
-          <p style={{ color: '#e8d5a0', fontSize: 20 }}>All your adventurers were lost.</p>
-          <p style={{ color: '#888', fontSize: 15, marginTop: 8 }}>
-            Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> and completed{' '}
-            <span style={{ color: '#c8960c' }}>{questsCompleted} quests</span> before falling silent.
-          </p>
-          <button onClick={onNewGame} style={newGameButtonStyle}>New Game</button>
+      <>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300,
+          fontFamily: 'serif',
+        }}>
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ fontSize: 72, marginBottom: 8 }}>&#x1F480;</div>
+            <h1 style={{ color: '#e74c3c', fontSize: 40, margin: '0 0 12px' }}>Defeated</h1>
+            <p style={{ color: '#e8d5a0', fontSize: 20 }}>All your adventurers were lost.</p>
+            <p style={{ color: '#888', fontSize: 15, marginTop: 8 }}>
+              Your tavern earned <span style={{ color: '#ffd700' }}>{gold} gold</span> and completed{' '}
+              <span style={{ color: '#c8960c' }}>{questsCompleted} quests</span> before falling silent.
+            </p>
+            <button onClick={() => setShowNewGameConfirm(true)} style={newGameButtonStyle}>New Game</button>
+          </div>
         </div>
-      </div>
+        {showNewGameConfirm && (
+          <div style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.72)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 400,
+            fontFamily: 'serif',
+          }}>
+            <div style={{
+              background: 'rgba(15,8,2,0.98)',
+              border: '2px solid #8a3a1a',
+              borderRadius: 14,
+              padding: '28px 32px',
+              minWidth: 300,
+              maxWidth: 360,
+              boxShadow: '0 0 40px rgba(200,80,20,0.25), 0 8px 32px rgba(0,0,0,0.95)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>⚠️</div>
+              <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>
+                Start a New Game?
+              </div>
+              <div style={{ color: '#888', fontSize: 13, lineHeight: 1.5, marginBottom: 22 }}>
+                This will permanently erase your current save, including all gold, adventurers, and progress. This cannot be undone.
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setShowNewGameConfirm(false)}
+                  style={{
+                    flex: 1,
+                    background: '#2a1a08',
+                    border: '1px solid #5c3315',
+                    borderRadius: 7,
+                    color: '#c8b090',
+                    fontFamily: 'serif',
+                    fontWeight: 'bold',
+                    fontSize: 14,
+                    padding: '9px 0',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setShowNewGameConfirm(false); onNewGame(); }}
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(180deg, #8a2a0a 0%, #5c1a08 100%)',
+                    border: '1px solid #c0401a',
+                    borderRadius: 7,
+                    color: '#e8d5a0',
+                    fontFamily: 'serif',
+                    fontWeight: 'bold',
+                    fontSize: 14,
+                    padding: '9px 0',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Wipe &amp; Start Over
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -1666,28 +1733,6 @@ export function HUD({
           )}
         </div>
       </div>
-
-      {/* New Game button — fixed top-right, outside all panels */}
-      <button
-        onClick={onNewGame}
-        title="Wipe save and start a new game"
-        style={{
-          position: 'fixed', top: 12, right: 16,
-          background: 'rgba(60,20,5,0.8)',
-          border: '1px solid #5c3315',
-          borderRadius: 5,
-          color: '#7a6a5a',
-          fontFamily: 'serif',
-          fontSize: 10,
-          padding: '2px 7px',
-          cursor: 'pointer',
-          letterSpacing: 0.3,
-          pointerEvents: 'auto',
-          zIndex: 110,
-        }}
-      >
-        New Game
-      </button>
 
       {/* Left panel */}
       <LeftPanel
@@ -1772,6 +1817,7 @@ export function HUD({
           />
         </div>
       )}
+
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas as CanvasWebGL, useThree } from '@react-three/fiber';
+import { Canvas as CanvasWebGPU } from '@react-three/fiber/webgpu';
 import { OrbitControls } from '@react-three/drei';
 import { Suspense, Component, type ReactNode, useEffect, useRef, useState } from 'react';
 import { TavernScene } from './components/TavernScene';
@@ -6,8 +7,10 @@ import { HUD } from './components/HUD';
 import { ManagementScene } from './components/ManagementScene';
 import { OwnerRoomScene } from './components/OwnerRoomScene';
 import { RecruitsScene } from './components/RecruitsScene';
+import { OptionsScene } from './components/OptionsScene';
 import { useGameState } from './game/useGameState';
 import { useTavernAmbience } from './game/useTavernAmbience';
+import { useRendererPreference } from './game/useRendererPreference';
 import * as THREE from 'three';
 import './index.css';
 
@@ -40,6 +43,30 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, { error: boo
   }
 }
 
+/**
+ * Catches a WebGPU canvas init failure (or any error from inside the WebGPU
+ * Canvas subtree) and falls back to the WebGL renderer instead of crashing
+ * the whole app. Resets when the player explicitly retries.
+ */
+class WebGPUFallbackBoundary extends Component<
+  { onFallback: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() {
+    this.props.onFallback();
+  }
+  componentDidUpdate(prevProps: { onFallback: () => void; children: ReactNode }) {
+    if (this.state.failed && prevProps.children !== this.props.children) {
+      this.setState({ failed: false });
+    }
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 function LoadingScreen() {
   return (
     <div style={{
@@ -54,12 +81,13 @@ function LoadingScreen() {
   );
 }
 
-type ActiveScene = 'tavern' | 'management' | 'recruits';
+type ActiveScene = 'tavern' | 'management' | 'recruits' | 'options';
 
 const SCENE_LABELS: Record<ActiveScene, string> = {
   tavern: '⚔ Tavern',
   management: '🏗 Manage',
   recruits: '🧙 Recruits',
+  options: '⚙ Options',
 };
 
 /** Adjusts the camera position when switching between tavern and owner's room */
@@ -95,11 +123,16 @@ function SceneCameraController({
   return null;
 }
 
-function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
+function SceneNav({ activeScene, onSetScene, upgradePointAlert, isMuted, onToggleMute, volume, onVolumeChange }: {
   activeScene: ActiveScene;
   onSetScene: (s: ActiveScene) => void;
   upgradePointAlert: boolean;
+  isMuted: boolean;
+  onToggleMute: () => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
 }) {
+  const effectivePct = Math.round((isMuted ? 0 : volume) * 100);
   return (
     <div style={{
       position: 'fixed',
@@ -123,7 +156,7 @@ function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
       }}>
         The Wanderer's Rest
       </span>
-      {(['tavern', 'management', 'recruits'] as ActiveScene[]).map(scene => {
+      {(['tavern', 'management', 'recruits', 'options'] as ActiveScene[]).map(scene => {
         const active = activeScene === scene;
         const hasAlert = scene === 'recruits' && upgradePointAlert && !active;
         return (
@@ -159,6 +192,52 @@ function SceneNav({ activeScene, onSetScene, upgradePointAlert }: {
           </button>
         );
       })}
+      <div style={{
+        position: 'absolute',
+        right: 12,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}>
+        <button
+          onClick={onToggleMute}
+          title={isMuted ? 'Unmute sounds' : 'Mute sounds'}
+          style={{
+            background: 'none',
+            border: '1px solid #3d2410',
+            borderRadius: 6,
+            color: isMuted ? '#5a4a38' : '#a08060',
+            fontSize: 16,
+            lineHeight: 1,
+            width: 30,
+            height: 26,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'color 0.15s, border-color 0.15s',
+            padding: 0,
+          }}
+        >
+          {isMuted ? '🔇' : '🔊'}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={isMuted ? 0 : Math.round(volume * 100)}
+          onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
+          title={`Volume: ${effectivePct}%`}
+          aria-label="Master volume"
+          style={{
+            width: 90,
+            height: 4,
+            accentColor: '#a0631e',
+            cursor: 'pointer',
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -178,16 +257,22 @@ export default function App() {
     hireUpgrade,
     sellMaterials,
     spendUpgradePoint,
+    refundUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
     abandonBounty,
     craftGear,
+    manualSave,
+    exportSave,
+    importSave,
+    lastAutoSavedAt,
   } = useGameState();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const orbitRef = useRef<any>(null);
-  const { startAmbience, playSound } = useTavernAmbience();
+  const { startAmbience, playSound, toggleMute, isMuted, volume, setVolume } = useTavernAmbience();
   const ambienceStarted = useRef(false);
+  const rendererPref = useRendererPreference();
 
   const handleFirstInteraction = () => {
     if (!ambienceStarted.current) {
@@ -197,13 +282,62 @@ export default function App() {
   };
 
   const prevLogRef = useRef<string[]>([]);
+  const goldDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (goldDropTimerRef.current !== null) clearTimeout(goldDropTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     const prev = prevLogRef.current;
     const curr = state.gameLog;
     if (curr !== prev && curr.length > 0 && prev.length > 0) {
-      const newest = curr[0];
-      if (newest.includes('succeeded')) playSound('questComplete');
-      else if (newest.includes('failed')) playSound('questFail');
+      // Collect all newly prepended entries since last render
+      const newEntries: string[] = [];
+      for (const entry of curr) {
+        if (entry === prev[0]) break;
+        newEntries.push(entry);
+      }
+
+      let triggerLevelUp = false;
+      let triggerQuestComplete = false;
+      let triggerQuestFail = false;
+      let triggerGoldDrop = false;
+
+      for (const entry of newEntries) {
+        if (entry.includes('ascended') || entry.includes('legendary') || entry.includes('reached level')) {
+          triggerLevelUp = true;
+        } else if (entry.includes('succeeded')) {
+          triggerQuestComplete = true;
+        } else if (entry.includes('failed')) {
+          triggerQuestFail = true;
+        } else if (
+          entry.includes('Party returned with') ||
+          entry.includes('Inn rooms earned') ||
+          (entry.includes('Bounty') && entry.includes('completed')) ||
+          (entry.includes('Sold') && entry.includes('gold'))
+        ) {
+          triggerGoldDrop = true;
+        }
+      }
+
+      // levelUp overrides questComplete when both happen (intentional: level-up
+      // is the more salient event). goldDrop is staggered after fanfare/chord.
+      if (triggerLevelUp) {
+        playSound('levelUp');
+      } else if (triggerQuestComplete) {
+        playSound('questComplete');
+        if (triggerGoldDrop) {
+          // Stagger coin clink after the fanfare finishes (~1.15 s)
+          if (goldDropTimerRef.current !== null) clearTimeout(goldDropTimerRef.current);
+          goldDropTimerRef.current = setTimeout(() => playSound('goldDrop'), 1150);
+        }
+      } else if (triggerQuestFail) {
+        playSound('questFail');
+      } else if (triggerGoldDrop) {
+        playSound('goldDrop');
+      }
     }
     prevLogRef.current = curr;
   }, [state.gameLog, playSound]);
@@ -215,6 +349,52 @@ export default function App() {
   const upgradePointAlert = recruited.some(a => (a.upgradePoints ?? 0) > 0);
 
   const showCanvas = activeScene === 'tavern' || activeScene === 'management';
+  const usingWebGPU = rendererPref.effective === 'webgpu';
+  const handleWebGPUFallback = () => {
+    // Keep the player's stated preference, but record that WebGPU can't be
+    // honored here so the rest of the app falls back to WebGL cleanly.
+    rendererPref.markWebGPUUnsupported();
+  };
+
+  const sharedCanvasOnClick = () => {
+    if (activeScene === 'tavern' && state.selectedAdventurerId) {
+      selectAdventurer(null);
+    }
+  };
+
+  const sceneChildren = (
+    <>
+      <SceneCameraController activeScene={activeScene} orbitRef={orbitRef} />
+
+      <OrbitControls
+        ref={orbitRef}
+        target={[0, 0, 0]}
+        maxPolarAngle={Math.PI / 2.4}
+        minPolarAngle={Math.PI / 6}
+        minDistance={8}
+        maxDistance={22}
+        enablePan={false}
+        enabled={activeScene === 'tavern'}
+        makeDefault
+      />
+
+      {/* Tavern scene — always mounted, visible only when active */}
+      <group visible={activeScene === 'tavern'}>
+        <TavernScene
+          adventurers={state.adventurers}
+          selectedAdventurerId={state.selectedAdventurerId}
+          onSelectAdventurer={selectAdventurer}
+          onAdventurerArrived={markAdventurerArrived}
+          upgrades={state.upgrades}
+        />
+      </group>
+
+      {/* Owner's Room scene — always mounted, visible only when management is active */}
+      <group visible={activeScene === 'management'}>
+        <OwnerRoomScene />
+      </group>
+    </>
+  );
 
   return (
     <div
@@ -225,6 +405,10 @@ export default function App() {
         activeScene={activeScene}
         onSetScene={setActiveScene}
         upgradePointAlert={upgradePointAlert}
+        isMuted={isMuted}
+        onToggleMute={toggleMute}
+        volume={volume}
+        onVolumeChange={setVolume}
       />
 
       {/*
@@ -236,47 +420,32 @@ export default function App() {
       <div style={{ display: showCanvas ? 'block' : 'none' }}>
         <WebGLErrorBoundary>
           <Suspense fallback={<LoadingScreen />}>
-            <Canvas
-              shadows
-              camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
-              style={{ width: '100vw', height: '100vh' }}
-              gl={{ antialias: true }}
-              onClick={() => {
-                if (activeScene === 'tavern' && state.selectedAdventurerId) {
-                  selectAdventurer(null);
-                }
-              }}
-            >
-              <SceneCameraController activeScene={activeScene} orbitRef={orbitRef} />
-
-              <OrbitControls
-                ref={orbitRef}
-                target={[0, 0, 0]}
-                maxPolarAngle={Math.PI / 2.4}
-                minPolarAngle={Math.PI / 6}
-                minDistance={8}
-                maxDistance={22}
-                enablePan={false}
-                enabled={activeScene === 'tavern'}
-                makeDefault
-              />
-
-              {/* Tavern scene — always mounted, visible only when active */}
-              <group visible={activeScene === 'tavern'}>
-                <TavernScene
-                  adventurers={state.adventurers}
-                  selectedAdventurerId={state.selectedAdventurerId}
-                  onSelectAdventurer={selectAdventurer}
-                  onAdventurerArrived={markAdventurerArrived}
-                  upgrades={state.upgrades}
-                />
-              </group>
-
-              {/* Owner's Room scene — always mounted, visible only when management is active */}
-              <group visible={activeScene === 'management'}>
-                <OwnerRoomScene />
-              </group>
-            </Canvas>
+            {!rendererPref.ready ? (
+              <LoadingScreen />
+            ) : usingWebGPU ? (
+              <WebGPUFallbackBoundary onFallback={handleWebGPUFallback}>
+                <CanvasWebGPU
+                  key="webgpu"
+                  shadows={{ type: THREE.PCFShadowMap }}
+                  camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
+                  style={{ width: '100vw', height: '100vh' }}
+                  onClick={sharedCanvasOnClick}
+                >
+                  {sceneChildren}
+                </CanvasWebGPU>
+              </WebGPUFallbackBoundary>
+            ) : (
+              <CanvasWebGL
+                key="webgl"
+                shadows={{ type: THREE.PCFShadowMap }}
+                camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
+                style={{ width: '100vw', height: '100vh' }}
+                gl={{ antialias: true }}
+                onClick={sharedCanvasOnClick}
+              >
+                {sceneChildren}
+              </CanvasWebGL>
+            )}
           </Suspense>
         </WebGLErrorBoundary>
 
@@ -331,7 +500,23 @@ export default function App() {
           adventurers={state.adventurers}
           gold={state.gold}
           onSpendUpgradePoint={spendUpgradePoint}
+          onRefundUpgradePoint={refundUpgradePoint}
           onPrestigeAdventurer={prestigeAdventurer}
+        />
+      )}
+
+      {/* Options scene — pure 2D settings panel */}
+      {activeScene === 'options' && (
+        <OptionsScene
+          preference={rendererPref.preference}
+          effective={rendererPref.effective}
+          webGPUSupported={rendererPref.webGPUSupported}
+          onSetPreference={rendererPref.setPreference}
+          onNewGame={newGame}
+          onSave={manualSave}
+          onExportSave={exportSave}
+          onImportSave={importSave}
+          lastAutoSavedAt={lastAutoSavedAt}
         />
       )}
     </div>

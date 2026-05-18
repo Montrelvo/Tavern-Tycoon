@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback, useRef } from 'react';
+import { useReducer, useEffect, useCallback, useRef, useState } from 'react';
 import type { GameState, GameAction, Adventurer, Quest, Materials, BountyQuest, DropNotification } from './types';
 import type { AdventurerClass, QuestType } from './types';
 import {
@@ -346,7 +346,7 @@ function loadFromStorage(): GameState {
     const mergedUpgrades = {
       ...DEFAULT_UPGRADES,
       ...(parsed.upgrades ?? {}),
-      rosterSlots: Math.max(0, (parsed.upgrades?.rosterSlots ?? 1) - 1),
+      rosterSlots: parsed.upgrades?.rosterSlots ?? 0,
       rooms: (parsed.upgrades?.rooms ?? 0) as 0 | 1 | 2,
       basement: parsed.upgrades?.basement ?? false,
       trainingGrounds: parsed.upgrades?.trainingGrounds ?? false,
@@ -387,7 +387,7 @@ function loadFromStorage(): GameState {
   }
 }
 
-function saveToStorage(state: GameState) {
+function saveToStorage(state: GameState): boolean {
   try {
     const toSave: GameState = {
       ...state,
@@ -398,8 +398,9 @@ function saveToStorage(state: GameState) {
       showQuestBoard: false,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(toSave));
+    return true;
   } catch {
-    // ignore storage errors
+    return false;
   }
 }
 
@@ -980,6 +981,34 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'REFUND_UPGRADE_POINT': {
+      if (state.gamePhase !== 'playing') return state;
+      const adv = state.adventurers.find(a => a.id === action.adventurerId);
+      if (!adv) return state;
+      const statLabel = action.stat === 'hp' ? 'HP' : action.stat === 'attack' ? 'Attack' : 'Defense';
+      let blocked = false;
+      const next = {
+        ...state,
+        adventurers: state.adventurers.map(a => {
+          if (a.id !== action.adventurerId) return a;
+          const pts = (a.upgradePoints ?? 0) + 1;
+          if (action.stat === 'hp') {
+            if (a.maxHp < 5) { blocked = true; return a; }
+            const newMax = a.maxHp - 5;
+            return { ...a, upgradePoints: pts, maxHp: newMax, hp: Math.min(a.hp, newMax) };
+          }
+          if (action.stat === 'attack') {
+            if (a.attack < 1) { blocked = true; return a; }
+            return { ...a, upgradePoints: pts, attack: a.attack - 1 };
+          }
+          if (a.defense < 1) { blocked = true; return a; }
+          return { ...a, upgradePoints: pts, defense: a.defense - 1 };
+        }),
+      };
+      if (blocked) return state;
+      return { ...next, gameLog: addLog(state.gameLog, `${adv.name} refunded a ${statLabel} upgrade.`) };
+    }
+
     case 'PRESTIGE_ADVENTURER': {
       if (state.gamePhase !== 'playing') return state;
       const adv = state.adventurers.find(a => a.id === action.id);
@@ -1097,8 +1126,17 @@ export function useGameState() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<number | null>(null);
+  const isFirstAutoSave = useRef(true);
+
   useEffect(() => {
-    saveToStorage(state);
+    if (isFirstAutoSave.current) {
+      isFirstAutoSave.current = false;
+      saveToStorage(state);
+      return;
+    }
+    const ok = saveToStorage(state);
+    if (ok) setLastAutoSavedAt(Date.now());
   }, [state]);
 
   // Spawn adventurers
@@ -1262,6 +1300,10 @@ export function useGameState() {
     dispatch({ type: 'SPEND_UPGRADE_POINT', adventurerId, stat });
   }, []);
 
+  const refundUpgradePoint = useCallback((adventurerId: string, stat: 'hp' | 'attack' | 'defense') => {
+    dispatch({ type: 'REFUND_UPGRADE_POINT', adventurerId, stat });
+  }, []);
+
   const prestigeAdventurer = useCallback((id: string) => {
     dispatch({ type: 'PRESTIGE_ADVENTURER', id });
   }, []);
@@ -1278,6 +1320,60 @@ export function useGameState() {
     dispatch({ type: 'CRAFT_GEAR', recipeId, adventurerId });
   }, []);
 
+  const manualSave = useCallback((): number | null => {
+    const ok = saveToStorage(stateRef.current);
+    return ok ? Date.now() : null;
+  }, []);
+
+  const exportSave = useCallback(() => {
+    try {
+      const current = stateRef.current;
+      const toExport: GameState = {
+        ...current,
+        adventurers: current.adventurers.filter(
+          a => a.status === 'recruited' || a.status === 'on-quest'
+        ),
+        selectedAdventurerId: null,
+        showQuestBoard: false,
+      };
+      const blob = new Blob([JSON.stringify(toExport)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().slice(0, 10);
+      a.download = `tavern-save-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Export failed. Please try again.');
+    }
+  }, []);
+
+  const importSave = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (
+          typeof parsed !== 'object' || parsed === null ||
+          typeof parsed.gold !== 'number' ||
+          !Array.isArray(parsed.adventurers)
+        ) {
+          alert('This file does not look like a Tavern Owner save. Please choose a valid save file.');
+          return;
+        }
+        localStorage.setItem(SAVE_KEY, text);
+        window.location.reload();
+      } catch {
+        alert('Invalid save file. Please choose a valid Tavern Owner save.');
+      }
+    };
+    reader.readAsText(file);
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -1292,9 +1388,14 @@ export function useGameState() {
     hireUpgrade,
     sellMaterials,
     spendUpgradePoint,
+    refundUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
     abandonBounty,
     craftGear,
+    manualSave,
+    exportSave,
+    importSave,
+    lastAutoSavedAt,
   };
 }

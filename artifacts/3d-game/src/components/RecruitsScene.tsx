@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Adventurer } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
@@ -8,6 +8,9 @@ import {
   MAX_LEVEL, XP_THRESHOLDS, ELITE_LEVEL, CLASS_STAT_COLORS,
 } from '../game/constants';
 import type { BaseStat } from '../game/types';
+import { AdventurerModelView } from './AdventurerModelView';
+
+type UpgradeStat = 'hp' | 'attack' | 'defense';
 
 const BASE_STATS: BaseStat[] = ['str', 'dex', 'con', 'int', 'wis'];
 const STAT_MAX = 30;
@@ -137,6 +140,32 @@ function RosterCard({ adv, isSelected, onSelect }: {
   );
 }
 
+function StepButton({ kind, enabled, color, onClick, title }: {
+  kind: 'plus' | 'minus'; enabled: boolean; color: string;
+  onClick: () => void; title: string;
+}) {
+  return (
+    <button
+      disabled={!enabled}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      style={{
+        width: 24, height: 24, borderRadius: 4,
+        background: enabled ? `${color}22` : '#1a0d04',
+        border: `1px solid ${enabled ? color : '#3d2410'}`,
+        color: enabled ? '#e8d5a0' : '#444',
+        fontFamily: 'serif', fontWeight: 'bold', fontSize: 14, lineHeight: 1,
+        cursor: enabled ? 'pointer' : 'not-allowed',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 0, transition: 'all 0.12s',
+      }}
+    >
+      {kind === 'plus' ? '+' : '−'}
+    </button>
+  );
+}
+
 function StatTooltip({ stat }: { stat: BaseStat }) {
   return (
     <span style={{ color: '#666', fontSize: 10, fontStyle: 'italic' }}>
@@ -145,14 +174,36 @@ function StatTooltip({ stat }: { stat: BaseStat }) {
   );
 }
 
-function DetailPanel({ adv, gold, onSpendUpgradePoint, onPrestigeAdventurer }: {
+function DetailPanel({ adv, gold, onSpendUpgradePoint, onRefundUpgradePoint, onPrestigeAdventurer }: {
   adv: Adventurer;
   gold: number;
-  onSpendUpgradePoint: (id: string, stat: 'hp' | 'attack' | 'defense') => void;
+  onSpendUpgradePoint: (id: string, stat: UpgradeStat) => void;
+  onRefundUpgradePoint: (id: string, stat: UpgradeStat) => void;
   onPrestigeAdventurer: (id: string) => void;
 }) {
   const [hoveredStat, setHoveredStat] = useState<BaseStat | null>(null);
   const [prestigeConfirm, setPrestigeConfirm] = useState(false);
+
+  // Snapshot the adventurer's stats at the moment this sheet opened for this
+  // recruit. Session-spent (and therefore refundable) counts are *derived*
+  // from the actual game state vs. this baseline — never tracked optimistically
+  // in UI state — so dropped spends, reducer rejections, or rapid clicks can't
+  // desync the counter or let players mint extra upgrade points via refunds.
+  const baselineRef = useRef<{ id: string; maxHp: number; attack: number; defense: number }>({
+    id: adv.id, maxHp: adv.maxHp, attack: adv.attack, defense: adv.defense,
+  });
+  if (baselineRef.current.id !== adv.id) {
+    baselineRef.current = {
+      id: adv.id, maxHp: adv.maxHp, attack: adv.attack, defense: adv.defense,
+    };
+  }
+  useEffect(() => { setPrestigeConfirm(false); }, [adv.id]);
+
+  const sessionSpent: Record<UpgradeStat, number> = {
+    hp:      Math.max(0, Math.floor((adv.maxHp   - baselineRef.current.maxHp)  / 5)),
+    attack:  Math.max(0, adv.attack  - baselineRef.current.attack),
+    defense: Math.max(0, adv.defense - baselineRef.current.defense),
+  };
 
   const baseColor = CLASS_COLORS[adv.class];
   const color = adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : baseColor;
@@ -163,128 +214,172 @@ function DetailPanel({ adv, gold, onSpendUpgradePoint, onPrestigeAdventurer }: {
   const canAffordPrestige = gold >= PRESTIGE_ADVENTURER_COST;
   const prestigeClass = PRESTIGE_CLASS_FOR[adv.class];
 
-  const statBtn = (
-    label: string, stat: 'hp' | 'attack' | 'defense',
-    current: number, next: number, btnColor: string,
-  ) => (
-    <button
-      disabled={pts === 0}
-      onClick={() => onSpendUpgradePoint(adv.id, stat)}
-      style={{
-        flex: 1,
-        background: pts > 0 ? `rgba(${btnColor},0.15)` : '#1a0d04',
-        border: `1px solid ${pts > 0 ? `rgba(${btnColor},0.5)` : '#3d2410'}`,
-        borderRadius: 6, color: pts > 0 ? '#e8d5a0' : '#555',
-        fontFamily: 'serif', fontWeight: 'bold', fontSize: 12,
-        padding: '7px 6px', cursor: pts > 0 ? 'pointer' : 'not-allowed',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-        transition: 'all 0.15s',
-      }}
-    >
-      <span style={{ fontSize: 10, color: pts > 0 ? `rgb(${btnColor})` : '#444' }}>{label}</span>
-      <span>{current} → <span style={{ color: pts > 0 ? '#2ecc71' : '#555' }}>{next}</span></span>
-      <span style={{ fontSize: 9, color: '#666' }}>−1 pt</span>
-    </button>
-  );
+  const handleSpend = (stat: UpgradeStat) => {
+    if (pts <= 0) return;
+    onSpendUpgradePoint(adv.id, stat);
+  };
+  const handleRefund = (stat: UpgradeStat) => {
+    if (sessionSpent[stat] <= 0) return;
+    onRefundUpgradePoint(adv.id, stat);
+  };
+
+  const StatRow = ({
+    label, icon, value, statColor, stat, step,
+  }: {
+    label: string; icon: string; value: number; statColor: string;
+    stat: UpgradeStat; step: number;
+  }) => {
+    const canPlus = pts > 0;
+    const canMinus = sessionSpent[stat] > 0;
+    return (
+      <div style={{
+        flex: 1, minWidth: 0,
+        background: `${statColor}11`, border: `1px solid ${statColor}33`,
+        borderRadius: 6, padding: '6px 6px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      }}>
+        <div style={{ color: statColor, fontSize: 11, whiteSpace: 'nowrap' }}>{icon} {label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <StepButton
+            kind="minus"
+            enabled={canMinus}
+            color={statColor}
+            onClick={() => handleRefund(stat)}
+            title={canMinus ? `Refund 1 point (${label} −${step})` : 'Nothing to refund this session'}
+          />
+          <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 16, minWidth: 28, textAlign: 'center' }}>
+            {value}
+          </div>
+          <StepButton
+            kind="plus"
+            enabled={canPlus}
+            color={statColor}
+            onClick={() => handleSpend(stat)}
+            title={canPlus ? `Spend 1 point (${label} +${step})` : 'No upgrade points available'}
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
-      {/* Header */}
+      {/* Header: stats column + 3D model column */}
       <div style={{
         ...panelBg, padding: 16,
         borderLeft: `3px solid ${color}`,
         boxShadow: `0 0 16px ${color}22`,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 16, height: 16, borderRadius: 4, background: color, flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 20 }}>{adv.name}</span>
-              {isPrestiged && (
-                <span style={{
-                  fontSize: 10, fontWeight: 'bold', color: '#000',
-                  background: `linear-gradient(135deg, ${color}, ${color}99)`,
-                  borderRadius: 8, padding: '1px 6px',
-                }}>
-                  ★ Prestige
-                </span>
-              )}
-              {!isPrestiged && elite && (
-                <span style={{
-                  fontSize: 10, fontWeight: 'bold', color: '#1a0d00',
-                  background: 'linear-gradient(90deg, #f1c40f, #e67e22)',
-                  borderRadius: 8, padding: '1px 6px',
-                }}>
-                  ★ Elite
-                </span>
-              )}
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {/* Left column */}
+          <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 16, height: 16, borderRadius: 4, background: color, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 20 }}>{adv.name}</span>
+                  {isPrestiged && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 'bold', color: '#000',
+                      background: `linear-gradient(135deg, ${color}, ${color}99)`,
+                      borderRadius: 8, padding: '1px 6px',
+                    }}>
+                      ★ Prestige
+                    </span>
+                  )}
+                  {!isPrestiged && elite && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 'bold', color: '#1a0d00',
+                      background: 'linear-gradient(90deg, #f1c40f, #e67e22)',
+                      borderRadius: 8, padding: '1px 6px',
+                    }}>
+                      ★ Elite
+                    </span>
+                  )}
+                </div>
+                <div style={{ color: isPrestiged ? color : '#b0a090', fontSize: 13, marginTop: 1 }}>
+                  {isPrestiged ? PRESTIGE_CLASS_LABELS[adv.prestigeClass!] : CLASS_LABELS[adv.class]}
+                  {' '}·{' '}
+                  <span style={{
+                    fontSize: 10, fontWeight: 'bold', padding: '1px 5px', borderRadius: 3,
+                    background: isPrestiged
+                      ? `linear-gradient(135deg, ${color}, ${color}88)`
+                      : elite ? 'linear-gradient(135deg, #f1c40f, #e67e22)' : 'rgba(255,255,255,0.1)',
+                    color: (elite || isPrestiged) ? '#1a0d00' : '#aaa',
+                  }}>
+                    {isPrestiged ? '✦' : elite ? '★' : ''}Lv {adv.level}
+                  </span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: '#ffd700', fontWeight: 'bold', fontSize: 16 }}>⚡ {adv.power}</div>
+                <div style={{ color: '#888', fontSize: 10 }}>Power</div>
+              </div>
             </div>
-            <div style={{ color: isPrestiged ? color : '#b0a090', fontSize: 13, marginTop: 1 }}>
+
+            {/* HP bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <span style={{ color: CLASS_STAT_COLORS.hp, fontSize: 10, width: 20, flexShrink: 0 }}>HP</span>
+              <div style={{ flex: 1, height: 8, background: '#1a0a0a', borderRadius: 4, border: '1px solid #3d1515' }}>
+                <div style={{
+                  background: adv.hp / adv.maxHp > 0.5 ? '#27ae60' : adv.hp / adv.maxHp > 0.25 ? '#e67e22' : '#e74c3c',
+                  width: `${Math.max(0, (adv.hp / adv.maxHp) * 100)}%`,
+                  height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
+                }} />
+              </div>
+              <span style={{ color: '#888', fontSize: 10, whiteSpace: 'nowrap' }}>{adv.hp}/{adv.maxHp}</span>
+            </div>
+
+            {/* XP bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#5dade2', fontSize: 10, width: 20, flexShrink: 0 }}>XP</span>
+              <div style={{ flex: 1 }}>
+                <XpProgress adv={adv} />
+              </div>
+            </div>
+
+            {/* Status */}
+            <div style={{ marginTop: 8, fontSize: 11, color: adv.status === 'on-quest' ? '#f39c12' : '#2ecc71' }}>
+              {adv.status === 'on-quest' ? '⚔ Currently on a quest' : '🏠 Resting at the tavern'}
+            </div>
+          </div>
+
+          {/* Right column: 3D model */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <AdventurerModelView adventurer={adv} size={160} />
+            <div style={{ fontSize: 10, color: '#7a6a5a', fontStyle: 'italic' }}>
               {isPrestiged ? PRESTIGE_CLASS_LABELS[adv.prestigeClass!] : CLASS_LABELS[adv.class]}
-              {' '}·{' '}
-              <span style={{
-                fontSize: 10, fontWeight: 'bold', padding: '1px 5px', borderRadius: 3,
-                background: isPrestiged
-                  ? `linear-gradient(135deg, ${color}, ${color}88)`
-                  : elite ? 'linear-gradient(135deg, #f1c40f, #e67e22)' : 'rgba(255,255,255,0.1)',
-                color: (elite || isPrestiged) ? '#1a0d00' : '#aaa',
-              }}>
-                {isPrestiged ? '✦' : elite ? '★' : ''}Lv {adv.level}
-              </span>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#ffd700', fontWeight: 'bold', fontSize: 16 }}>⚡ {adv.power}</div>
-            <div style={{ color: '#888', fontSize: 10 }}>Power</div>
-          </div>
-        </div>
-
-        {/* HP bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <span style={{ color: CLASS_STAT_COLORS.hp, fontSize: 10, width: 20, flexShrink: 0 }}>HP</span>
-          <div style={{ flex: 1, height: 8, background: '#1a0a0a', borderRadius: 4, border: '1px solid #3d1515' }}>
-            <div style={{
-              background: adv.hp / adv.maxHp > 0.5 ? '#27ae60' : adv.hp / adv.maxHp > 0.25 ? '#e67e22' : '#e74c3c',
-              width: `${Math.max(0, (adv.hp / adv.maxHp) * 100)}%`,
-              height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
-            }} />
-          </div>
-          <span style={{ color: '#888', fontSize: 10, whiteSpace: 'nowrap' }}>{adv.hp}/{adv.maxHp}</span>
-        </div>
-
-        {/* XP bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: '#5dade2', fontSize: 10, width: 20, flexShrink: 0 }}>XP</span>
-          <div style={{ flex: 1 }}>
-            <XpProgress adv={adv} />
-          </div>
-        </div>
-
-        {/* Status */}
-        <div style={{ marginTop: 8, fontSize: 11, color: adv.status === 'on-quest' ? '#f39c12' : '#2ecc71' }}>
-          {adv.status === 'on-quest' ? '⚔ Currently on a quest' : '🏠 Resting at the tavern'}
         </div>
       </div>
 
-      {/* Combat Stats */}
+      {/* Combat Stats — with inline +/- controls */}
       <div style={{ ...panelBg, padding: '12px 14px' }}>
-        <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 12, marginBottom: 8, letterSpacing: 0.5 }}>
-          COMBAT STATS
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: 10, gap: 8, flexWrap: 'wrap',
+        }}>
+          <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 12, letterSpacing: 0.5 }}>
+            COMBAT STATS
+          </span>
+          <span style={{
+            fontSize: 11, fontWeight: 'bold',
+            color: pts > 0 ? '#1a0d00' : '#888',
+            background: pts > 0
+              ? 'linear-gradient(135deg, #f1c40f, #e67e22)'
+              : 'rgba(255,255,255,0.05)',
+            border: pts > 0 ? 'none' : '1px solid #3d2410',
+            borderRadius: 8, padding: '2px 8px',
+            boxShadow: pts > 0 ? '0 0 6px #f1c40f88' : 'none',
+          }}>
+            ✦ {pts} upgrade point{pts !== 1 ? 's' : ''}
+          </span>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-          {[
-            { label: 'Attack', value: adv.attack, color: CLASS_STAT_COLORS.attack, icon: '⚔' },
-            { label: 'Defense', value: adv.defense, color: CLASS_STAT_COLORS.defense, icon: '🛡' },
-            { label: 'Max HP', value: adv.maxHp, color: CLASS_STAT_COLORS.hp, icon: '❤' },
-          ].map(({ label, value, color: c, icon }) => (
-            <div key={label} style={{
-              flex: 1, textAlign: 'center', background: `${c}11`,
-              border: `1px solid ${c}33`, borderRadius: 6, padding: '6px 4px',
-            }}>
-              <div style={{ color: c, fontSize: 11, marginBottom: 2 }}>{icon} {label}</div>
-              <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 16 }}>{value}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+          <StatRow label="Max HP"  icon="❤" value={adv.maxHp}  statColor={CLASS_STAT_COLORS.hp}      stat="hp"      step={5} />
+          <StatRow label="Attack"  icon="⚔" value={adv.attack} statColor={CLASS_STAT_COLORS.attack}  stat="attack"  step={1} />
+          <StatRow label="Defense" icon="🛡" value={adv.defense} statColor={CLASS_STAT_COLORS.defense} stat="defense" step={1} />
         </div>
         <div style={{
           background: `${color}0d`, border: `1px solid ${color}33`,
@@ -325,33 +420,6 @@ function DetailPanel({ adv, gold, onSpendUpgradePoint, onPrestigeAdventurer }: {
           </div>
         ))}
       </div>
-
-      {/* Upgrade Points */}
-      {pts > 0 && (
-        <div style={{
-          ...panelBg, padding: '12px 14px',
-          border: '1px solid #f1c40f88',
-          boxShadow: '0 0 12px #f1c40f22',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ color: '#f1c40f', fontWeight: 'bold', fontSize: 12, letterSpacing: 0.5 }}>
-              UPGRADE POINTS
-            </span>
-            <span style={{
-              fontSize: 11, fontWeight: 'bold', color: '#1a0d00',
-              background: 'linear-gradient(135deg, #f1c40f, #e67e22)',
-              borderRadius: 8, padding: '2px 8px', boxShadow: '0 0 6px #f1c40f88',
-            }}>
-              {pts} point{pts !== 1 ? 's' : ''} available
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {statBtn('+5 Max HP', 'hp', adv.maxHp, adv.maxHp + 5, '231,76,60')}
-            {statBtn('+1 Attack', 'attack', adv.attack, adv.attack + 1, '230,126,34')}
-            {statBtn('+1 Defense', 'defense', adv.defense, adv.defense + 1, '52,152,219')}
-          </div>
-        </div>
-      )}
 
       {/* Prestige */}
       {canPrestige && (
@@ -436,10 +504,11 @@ function DetailPanel({ adv, gold, onSpendUpgradePoint, onPrestigeAdventurer }: {
   );
 }
 
-export function RecruitsScene({ adventurers, gold, onSpendUpgradePoint, onPrestigeAdventurer }: {
+export function RecruitsScene({ adventurers, gold, onSpendUpgradePoint, onRefundUpgradePoint, onPrestigeAdventurer }: {
   adventurers: Adventurer[];
   gold: number;
-  onSpendUpgradePoint: (adventurerId: string, stat: 'hp' | 'attack' | 'defense') => void;
+  onSpendUpgradePoint: (adventurerId: string, stat: UpgradeStat) => void;
+  onRefundUpgradePoint: (adventurerId: string, stat: UpgradeStat) => void;
   onPrestigeAdventurer: (id: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -505,6 +574,7 @@ export function RecruitsScene({ adventurers, gold, onSpendUpgradePoint, onPresti
             adv={selectedAdv}
             gold={gold}
             onSpendUpgradePoint={onSpendUpgradePoint}
+            onRefundUpgradePoint={onRefundUpgradePoint}
             onPrestigeAdventurer={onPrestigeAdventurer}
           />
         ) : (

@@ -276,8 +276,8 @@ function WallFireplace() {
   const flame1Ref = useRef<THREE.Mesh>(null);
   const flame2Ref = useRef<THREE.Mesh>(null);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
     if (lightRef.current) {
       const flicker =
         2.5 +
@@ -394,8 +394,8 @@ function DeskCandle() {
   const lightRef = useRef<THREE.PointLight>(null);
   const flameRef = useRef<THREE.Mesh>(null);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
     if (lightRef.current) {
       const pulse =
         1.0 +
@@ -463,8 +463,8 @@ function WallSconce() {
   const lightRef = useRef<THREE.PointLight>(null);
   const flameRef = useRef<THREE.Mesh>(null);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
     if (lightRef.current) {
       const pulse =
         0.9 +
