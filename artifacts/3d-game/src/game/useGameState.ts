@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useCallback, useRef } from 'react';
-import type { GameState, GameAction, Adventurer, Quest, Materials, BountyQuest } from './types';
+import type { GameState, GameAction, Adventurer, Quest, Materials, BountyQuest, DropNotification } from './types';
 import type { AdventurerClass, QuestType } from './types';
 import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
@@ -20,6 +20,7 @@ const SAVE_KEY = 'tavern_save_v1';
 let adventurerCounter = 0;
 let questCounter = 0;
 let bountyCounter = 0;
+let dropNotificationCounter = 0;
 const usedNames = new Set<string>();
 
 interface BountyDefinition {
@@ -200,6 +201,7 @@ function buildFreshState(): GameState {
     materials: { ...DEFAULT_MATERIALS },
     questsCompleted: 0,
     tavernPrestige: 0,
+    lastDropNotification: null,
   };
 }
 
@@ -276,6 +278,7 @@ function loadFromStorage(): GameState {
       materials: mergedMaterials,
       questsCompleted: parsed.questsCompleted ?? 0,
       tavernPrestige: (parsed.tavernPrestige ?? 0) as 0 | 1 | 2 | 3,
+      lastDropNotification: null,
       gamePhase: (parsed.gamePhase === 'won' || parsed.gamePhase !== 'lost' ? 'playing' : 'lost') as GameState['gamePhase'],
     };
     syncCountersFromState(restored);
@@ -455,9 +458,10 @@ function reducer(state: GameState, action: GameAction): GameState {
         const newMaterials = { ...state.materials };
         let finalLog = addLog(state.gameLog, logMsg);
         deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
+        let dropNotification: DropNotification | null = null;
         if (state.upgrades.basement && Math.random() < 0.4) {
           const dropCount = Math.floor(Math.random() * 2) + 1;
-          const materialDrops: string[] = [];
+          const materialKeys: Array<keyof Materials> = [];
           const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
           const monsterPool = MONSTER_PART_DROPS[quest.questType] ?? ['bones', 'pelts', 'venom'];
           for (let i = 0; i < dropCount; i++) {
@@ -465,12 +469,17 @@ function reducer(state: GameState, action: GameAction): GameState {
             const pool = useMonsterPart ? monsterPool : craftingPool;
             const mat = pool[Math.floor(Math.random() * pool.length)];
             newMaterials[mat] += 1;
-            materialDrops.push(MATERIAL_LABELS[mat]);
+            materialKeys.push(mat);
           }
-          const counts: Record<string, number> = {};
-          materialDrops.forEach(m => { counts[m] = (counts[m] ?? 0) + 1; });
-          const dropDesc = Object.entries(counts).map(([m, n]) => `${n} ${m}${n > 1 ? 's' : ''}`).join(', ');
+          const keyCounts: Partial<Record<keyof Materials, number>> = {};
+          materialKeys.forEach(k => { keyCounts[k] = (keyCounts[k] ?? 0) + 1; });
+          const dropDesc = Object.entries(keyCounts).map(([m, n]) => `${n} ${MATERIAL_LABELS[m as keyof Materials]}${(n as number) > 1 ? 's' : ''}`).join(', ');
           finalLog = addLog(finalLog, `Party returned with ${dropDesc}!`);
+          dropNotification = {
+            id: ++dropNotificationCounter,
+            questName: quest.name,
+            drops: Object.entries(keyCounts).map(([m, qty]) => ({ material: m as keyof Materials, qty: qty as number })),
+          };
         }
 
         const newGold = state.gold + quest.reward;
@@ -531,6 +540,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           gameLog: finalLog,
           questsCompleted: newQuestsCompleted,
           tavernPrestige: newPrestige,
+          lastDropNotification: dropNotification ?? state.lastDropNotification,
         };
       } else {
         let newAdventurers = state.adventurers.map(adv => {

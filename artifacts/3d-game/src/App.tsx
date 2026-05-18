@@ -226,6 +226,7 @@ export default function App() {
           upgrades={state.upgrades}
           questsCompleted={state.questsCompleted}
           tavernPrestige={state.tavernPrestige}
+          lastDropNotification={state.lastDropNotification ?? null}
           onRecruit={recruitAdventurer}
           onSelectAdventurer={selectAdventurer}
           onToggleQuestBoard={toggleQuestBoard}

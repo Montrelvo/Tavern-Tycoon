@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import type { Adventurer, Quest, BountyQuest, Upgrades } from '../game/types';
+import React, { useEffect, useRef, useState } from 'react';
+import type { Adventurer, Quest, BountyQuest, Upgrades, DropNotification, Materials } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
   ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
@@ -9,6 +9,105 @@ import {
   PRESTIGE_ADVENTURER_COST,
 } from '../game/constants';
 import { getAdventurerBonus } from '../game/questUtils';
+
+const MATERIAL_ICONS: Record<keyof Materials, string> = {
+  herbs: '🌿',
+  ore: '⛏️',
+  relics: '🏺',
+  bones: '🦴',
+  pelts: '🐾',
+  venom: '🧪',
+};
+
+const MATERIAL_LABELS_HUD: Record<keyof Materials, string> = {
+  herbs: 'Herb',
+  ore: 'Ore',
+  relics: 'Relic',
+  bones: 'Bone',
+  pelts: 'Pelt',
+  venom: 'Venom',
+};
+
+function DropToast({ notification, onDismiss }: { notification: DropNotification; onDismiss: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const show = setTimeout(() => setVisible(true), 10);
+    const hide = setTimeout(() => {
+      setLeaving(true);
+      timerRef.current = setTimeout(onDismiss, 400);
+    }, 4000);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const opacity = visible && !leaving ? 1 : 0;
+  const translateY = visible && !leaving ? 0 : 24;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 60,
+        left: '50%',
+        transform: `translateX(-50%) translateY(${translateY}px)`,
+        opacity,
+        transition: leaving ? 'opacity 0.4s ease, transform 0.4s ease' : 'opacity 0.35s ease, transform 0.35s ease',
+        zIndex: 500,
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          background: 'rgba(10,5,1,0.97)',
+          border: '2px solid #c8960c',
+          borderRadius: 12,
+          padding: '12px 20px',
+          boxShadow: '0 0 32px rgba(200,150,12,0.35), 0 4px 20px rgba(0,0,0,0.9)',
+          fontFamily: 'serif',
+          textAlign: 'center',
+          minWidth: 200,
+        }}
+      >
+        <div style={{ color: '#c8960c', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+          Materials Found
+        </div>
+        <div style={{ color: '#888', fontSize: 11, marginBottom: 8 }}>
+          {notification.questName}
+        </div>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+          {notification.drops.map(({ material, qty }) => (
+            <div
+              key={material}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+                background: 'rgba(200,150,12,0.08)',
+                border: '1px solid rgba(200,150,12,0.25)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                minWidth: 52,
+              }}
+            >
+              <span style={{ fontSize: 22, lineHeight: 1 }}>{MATERIAL_ICONS[material]}</span>
+              <span style={{ color: '#e8d5a0', fontSize: 13, fontWeight: 'bold' }}>×{qty}</span>
+              <span style={{ color: '#888', fontSize: 10 }}>
+                {MATERIAL_LABELS_HUD[material]}{qty > 1 ? 's' : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface HUDProps {
   gold: number;
@@ -22,6 +121,7 @@ interface HUDProps {
   upgrades: Upgrades;
   questsCompleted: number;
   tavernPrestige: 0 | 1 | 2 | 3;
+  lastDropNotification: DropNotification | null;
   onRecruit: (id: string) => void;
   onSelectAdventurer: (id: string | null) => void;
   onToggleQuestBoard: () => void;
@@ -1268,7 +1368,7 @@ function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
 export function HUD({
   gold, adventurers, quests, bounties, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard, upgrades,
-  questsCompleted, tavernPrestige,
+  questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests,
   onAcceptBounty, onRefreshBounties, onPlaySound,
   onNewGame,
@@ -1281,6 +1381,16 @@ export function HUD({
   const selectedAdv = selectedAdventurerId
     ? adventurers.find(a => a.id === selectedAdventurerId) ?? null
     : null;
+
+  const [activeDropNotification, setActiveDropNotification] = useState<DropNotification | null>(null);
+  const shownNotificationIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (lastDropNotification && lastDropNotification.id !== shownNotificationIdRef.current) {
+      shownNotificationIdRef.current = lastDropNotification.id;
+      setActiveDropNotification(lastDropNotification);
+    }
+  }, [lastDropNotification]);
 
   const newGameButtonStyle: React.CSSProperties = {
     marginTop: 24,
@@ -1421,6 +1531,15 @@ export function HUD({
             Adventurers will arrive soon...
           </div>
         </div>
+      )}
+
+      {/* Drop notification toast */}
+      {activeDropNotification && (
+        <DropToast
+          key={activeDropNotification.id}
+          notification={activeDropNotification}
+          onDismiss={() => setActiveDropNotification(null)}
+        />
       )}
 
       {showQuestBoard && (

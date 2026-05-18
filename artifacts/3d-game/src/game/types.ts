@@ -74,6 +74,12 @@ export interface BountyQuest {
   status: BountyStatus;
 }
 
+export interface DropNotification {
+  id: number;
+  questName: string;
+  drops: Array<{ material: keyof Materials; qty: number }>;
+}
+
 export interface GameState {
   gold: number;
   adventurers: Adventurer[];
@@ -87,6 +93,7 @@ export interface GameState {
   materials: Materials;
   questsCompleted: number;
   tavernPrestige: 0 | 1 | 2 | 3;
+  lastDropNotification: DropNotification | null;
 }
 
 export type GameAction =
