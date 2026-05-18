@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Adventurer, Upgrades } from '../game/types';
 import { AdventurerMesh } from './AdventurerMesh';
@@ -280,8 +280,8 @@ function QuestBoardMesh() {
 function AnimatedCandles() {
   const lightRefs = useRef<(THREE.PointLight | null)[]>([]);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
     lightRefs.current.forEach((light, i) => {
       if (!light) return;
       const phase = i * 1.37;
@@ -299,7 +299,7 @@ function AnimatedCandles() {
       {CANDLE_POSITIONS.map((pos, i) => (
         <group key={i} position={pos}>
           <pointLight
-            ref={(el) => { lightRefs.current[i] = el; }}
+            ref={(el: THREE.PointLight | null) => { lightRefs.current[i] = el; }}
             intensity={1.2}
             distance={5}
             color="#ff9944"
@@ -327,8 +327,8 @@ function AnimatedFireplace() {
   const ember2Ref = useRef<THREE.Mesh>(null);
   const ember3Ref = useRef<THREE.Mesh>(null);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
 
     if (lightRef.current) {
       const flicker =
@@ -449,8 +449,8 @@ function DayNightSky() {
   const dirLightRef = useRef<THREE.DirectionalLight>(null);
   const tmpColor = new THREE.Color();
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
     const cycle = (Math.sin(t * 0.045) + 1) / 2;
 
     if (skyMatRef.current) {
@@ -555,8 +555,8 @@ function StaffNPCs({ upgrades }: { upgrades: Upgrades }) {
   const cookArmRef = useRef<THREE.Group>(null);
   const bardArmRef = useRef<THREE.Group>(null);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+  useFrame((state) => {
+    const t = state.elapsed;
     if (cookRef.current && upgrades.cook > 0) {
       cookRef.current.position.y = Math.sin(t * 1.4) * 0.04;
     }
@@ -702,7 +702,7 @@ export function TavernScene({
   upgrades,
 }: TavernSceneProps) {
   return (
-    <group onClick={(e) => { if (e.object === e.eventObject) onSelectAdventurer(null); }}>
+    <group onClick={(e: ThreeEvent<MouseEvent>) => { if (e.object === e.eventObject) onSelectAdventurer(null); }}>
       <DayNightSky />
       <TavernFloor />
       <TavernWalls />

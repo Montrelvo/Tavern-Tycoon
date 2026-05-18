@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Adventurer } from '../game/types';
 import { AdventurerBody } from './AdventurerBody';
@@ -59,8 +59,8 @@ export function AdventurerMesh({ adventurer, isSelected, onClick, onArrived }: A
     <group
       ref={groupRef}
       position={adventurer.position}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+      onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onClick(); }}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { setHovered(false); document.body.style.cursor = 'default'; }}
     >
       <AdventurerBody
