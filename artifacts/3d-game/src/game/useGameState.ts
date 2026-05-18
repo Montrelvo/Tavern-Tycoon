@@ -35,16 +35,16 @@ interface BountyDefinition {
 const BOUNTY_POOL: BountyDefinition[] = [
   { name: 'Beast Slayer',         description: 'Beasts ravage the countryside. Adventurers who hunt them earn a bounty.',       targetMonsterType: 'beast',   requiredKills: 3, reward: 75,  materialReward: { type: 'pelts',  amount: 2 } },
   { name: 'Dire Wolf Culling',    description: 'The wolf packs have grown bold. The pelts alone are worth the effort.',          targetMonsterType: 'beast',   requiredKills: 2, reward: 30,  materialReward: { type: 'pelts',  amount: 3 } },
-  { name: 'Monster Hunter',       description: 'Bring proof of five beast kills to the Hunters\' Lodge.',                        targetMonsterType: 'beast',   requiredKills: 5, reward: 120 },
+  { name: 'Monster Hunter',       description: 'Bring proof of five beast kills to the Hunters\' Lodge. Foraged herbs are part of the prize.', targetMonsterType: 'beast',   requiredKills: 5, reward: 90,  materialReward: { type: 'herbs', amount: 3 } },
   { name: 'Arcane Purge',         description: 'Magical disturbances haunt the region. Strange venom drips from slain horrors.', targetMonsterType: 'arcane',  requiredKills: 3, reward: 90,  materialReward: { type: 'venom',  amount: 2 } },
   { name: 'Relic Seeker',         description: 'The mages\' council pays in rare relics for arcane quest completions.',          targetMonsterType: 'arcane',  requiredKills: 2, reward: 30,  materialReward: { type: 'relics', amount: 3 } },
   { name: 'Void Hunter',          description: 'Stamp out five arcane threats for a generous reward.',                           targetMonsterType: 'arcane',  requiredKills: 5, reward: 140 },
   { name: 'Shadow Operative',     description: 'The Thieves\' Guild rewards discretion — and the venom of their quarry.',        targetMonsterType: 'stealth', requiredKills: 3, reward: 80,  materialReward: { type: 'venom',  amount: 2 } },
-  { name: 'Silent Blade Contract',description: 'Complete two stealth missions for the Guild\'s bounty prize.',                   targetMonsterType: 'stealth', requiredKills: 2, reward: 55 },
+  { name: 'Silent Blade Contract',description: 'Complete two stealth missions for the Guild\'s bounty prize — and a bundle of rare herbs.', targetMonsterType: 'stealth', requiredKills: 2, reward: 30,  materialReward: { type: 'herbs', amount: 2 } },
   { name: 'Ghost Protocol',       description: 'Five stealth completions earn you the Guild\'s highest honours — and trophies.', targetMonsterType: 'stealth', requiredKills: 5, reward: 130, materialReward: { type: 'pelts',  amount: 4 } },
   { name: 'Battlefield Veteran',  description: 'Survive three combat engagements. Bones are the soldier\'s grim currency.',     targetMonsterType: 'combat',  requiredKills: 3, reward: 85,  materialReward: { type: 'bones',  amount: 2 } },
   { name: 'War Hero',             description: 'Two victories in direct combat — keep the bones as proof of your deeds.',       targetMonsterType: 'combat',  requiredKills: 2, reward: 35,  materialReward: { type: 'bones',  amount: 3 } },
-  { name: 'Iron Warlord',         description: 'Five combat victories — only the strongest earn this bounty.',                  targetMonsterType: 'combat',  requiredKills: 5, reward: 150 },
+  { name: 'Iron Warlord',         description: 'Five combat victories — only the strongest earn this bounty. Raw ore is your reward.',   targetMonsterType: 'combat',  requiredKills: 5, reward: 110, materialReward: { type: 'ore',   amount: 3 } },
 ];
 
 function generateBounties(): BountyQuest[] {
