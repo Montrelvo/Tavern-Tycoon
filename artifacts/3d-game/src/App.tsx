@@ -171,7 +171,8 @@ export default function App() {
     selectAdventurer,
     toggleQuestBoard,
     dispatchQuest,
-    refreshQuests,
+    rejectQuest,
+    rejectBounty,
     markAdventurerArrived,
     newGame,
     hireUpgrade,
@@ -180,7 +181,6 @@ export default function App() {
     prestigeAdventurer,
     acceptBounty,
     abandonBounty,
-    refreshBounties,
     craftGear,
   } = useGameState();
 
@@ -299,10 +299,10 @@ export default function App() {
             onSelectAdventurer={selectAdventurer}
             onToggleQuestBoard={toggleQuestBoard}
             onDispatchQuest={dispatchQuest}
-            onRefreshQuests={refreshQuests}
+            onRejectQuest={rejectQuest}
             onAcceptBounty={acceptBounty}
             onAbandonBounty={abandonBounty}
-            onRefreshBounties={refreshBounties}
+            onRejectBounty={rejectBounty}
             onPlaySound={playSound}
             onNewGame={newGame}
           />
