@@ -228,13 +228,62 @@ export default function App() {
   };
 
   const prevLogRef = useRef<string[]>([]);
+  const goldDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (goldDropTimerRef.current !== null) clearTimeout(goldDropTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     const prev = prevLogRef.current;
     const curr = state.gameLog;
     if (curr !== prev && curr.length > 0 && prev.length > 0) {
-      const newest = curr[0];
-      if (newest.includes('succeeded')) playSound('questComplete');
-      else if (newest.includes('failed')) playSound('questFail');
+      // Collect all newly prepended entries since last render
+      const newEntries: string[] = [];
+      for (const entry of curr) {
+        if (entry === prev[0]) break;
+        newEntries.push(entry);
+      }
+
+      let triggerLevelUp = false;
+      let triggerQuestComplete = false;
+      let triggerQuestFail = false;
+      let triggerGoldDrop = false;
+
+      for (const entry of newEntries) {
+        if (entry.includes('ascended') || entry.includes('legendary') || entry.includes('reached level')) {
+          triggerLevelUp = true;
+        } else if (entry.includes('succeeded')) {
+          triggerQuestComplete = true;
+        } else if (entry.includes('failed')) {
+          triggerQuestFail = true;
+        } else if (
+          entry.includes('Party returned with') ||
+          entry.includes('Inn rooms earned') ||
+          (entry.includes('Bounty') && entry.includes('completed')) ||
+          (entry.includes('Sold') && entry.includes('gold'))
+        ) {
+          triggerGoldDrop = true;
+        }
+      }
+
+      // levelUp overrides questComplete when both happen (intentional: level-up
+      // is the more salient event). goldDrop is staggered after fanfare/chord.
+      if (triggerLevelUp) {
+        playSound('levelUp');
+      } else if (triggerQuestComplete) {
+        playSound('questComplete');
+        if (triggerGoldDrop) {
+          // Stagger coin clink after the fanfare finishes (~1.15 s)
+          if (goldDropTimerRef.current !== null) clearTimeout(goldDropTimerRef.current);
+          goldDropTimerRef.current = setTimeout(() => playSound('goldDrop'), 1150);
+        }
+      } else if (triggerQuestFail) {
+        playSound('questFail');
+      } else if (triggerGoldDrop) {
+        playSound('goldDrop');
+      }
     }
     prevLogRef.current = curr;
   }, [state.gameLog, playSound]);
