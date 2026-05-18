@@ -1,4 +1,5 @@
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas as CanvasWebGL, useThree } from '@react-three/fiber';
+import { Canvas as CanvasWebGPU } from '@react-three/fiber/webgpu';
 import { OrbitControls } from '@react-three/drei';
 import { Suspense, Component, type ReactNode, useEffect, useRef, useState } from 'react';
 import { TavernScene } from './components/TavernScene';
@@ -6,8 +7,10 @@ import { HUD } from './components/HUD';
 import { ManagementScene } from './components/ManagementScene';
 import { OwnerRoomScene } from './components/OwnerRoomScene';
 import { RecruitsScene } from './components/RecruitsScene';
+import { OptionsScene } from './components/OptionsScene';
 import { useGameState } from './game/useGameState';
 import { useTavernAmbience } from './game/useTavernAmbience';
+import { useRendererPreference } from './game/useRendererPreference';
 import * as THREE from 'three';
 import './index.css';
 
@@ -40,6 +43,30 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, { error: boo
   }
 }
 
+/**
+ * Catches a WebGPU canvas init failure (or any error from inside the WebGPU
+ * Canvas subtree) and falls back to the WebGL renderer instead of crashing
+ * the whole app. Resets when the player explicitly retries.
+ */
+class WebGPUFallbackBoundary extends Component<
+  { onFallback: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() {
+    this.props.onFallback();
+  }
+  componentDidUpdate(prevProps: { onFallback: () => void; children: ReactNode }) {
+    if (this.state.failed && prevProps.children !== this.props.children) {
+      this.setState({ failed: false });
+    }
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 function LoadingScreen() {
   return (
     <div style={{
@@ -54,12 +81,13 @@ function LoadingScreen() {
   );
 }
 
-type ActiveScene = 'tavern' | 'management' | 'recruits';
+type ActiveScene = 'tavern' | 'management' | 'recruits' | 'options';
 
 const SCENE_LABELS: Record<ActiveScene, string> = {
   tavern: '⚔ Tavern',
   management: '🏗 Manage',
   recruits: '🧙 Recruits',
+  options: '⚙ Options',
 };
 
 /** Adjusts the camera position when switching between tavern and owner's room */
@@ -128,7 +156,7 @@ function SceneNav({ activeScene, onSetScene, upgradePointAlert, isMuted, onToggl
       }}>
         The Wanderer's Rest
       </span>
-      {(['tavern', 'management', 'recruits'] as ActiveScene[]).map(scene => {
+      {(['tavern', 'management', 'recruits', 'options'] as ActiveScene[]).map(scene => {
         const active = activeScene === scene;
         const hasAlert = scene === 'recruits' && upgradePointAlert && !active;
         return (
@@ -244,6 +272,7 @@ export default function App() {
   const orbitRef = useRef<any>(null);
   const { startAmbience, playSound, toggleMute, isMuted, volume, setVolume } = useTavernAmbience();
   const ambienceStarted = useRef(false);
+  const rendererPref = useRendererPreference();
 
   const handleFirstInteraction = () => {
     if (!ambienceStarted.current) {
@@ -320,6 +349,52 @@ export default function App() {
   const upgradePointAlert = recruited.some(a => (a.upgradePoints ?? 0) > 0);
 
   const showCanvas = activeScene === 'tavern' || activeScene === 'management';
+  const usingWebGPU = rendererPref.effective === 'webgpu';
+  const handleWebGPUFallback = () => {
+    // Keep the player's stated preference, but record that WebGPU can't be
+    // honored here so the rest of the app falls back to WebGL cleanly.
+    rendererPref.markWebGPUUnsupported();
+  };
+
+  const sharedCanvasOnClick = () => {
+    if (activeScene === 'tavern' && state.selectedAdventurerId) {
+      selectAdventurer(null);
+    }
+  };
+
+  const sceneChildren = (
+    <>
+      <SceneCameraController activeScene={activeScene} orbitRef={orbitRef} />
+
+      <OrbitControls
+        ref={orbitRef}
+        target={[0, 0, 0]}
+        maxPolarAngle={Math.PI / 2.4}
+        minPolarAngle={Math.PI / 6}
+        minDistance={8}
+        maxDistance={22}
+        enablePan={false}
+        enabled={activeScene === 'tavern'}
+        makeDefault
+      />
+
+      {/* Tavern scene — always mounted, visible only when active */}
+      <group visible={activeScene === 'tavern'}>
+        <TavernScene
+          adventurers={state.adventurers}
+          selectedAdventurerId={state.selectedAdventurerId}
+          onSelectAdventurer={selectAdventurer}
+          onAdventurerArrived={markAdventurerArrived}
+          upgrades={state.upgrades}
+        />
+      </group>
+
+      {/* Owner's Room scene — always mounted, visible only when management is active */}
+      <group visible={activeScene === 'management'}>
+        <OwnerRoomScene />
+      </group>
+    </>
+  );
 
   return (
     <div
@@ -345,47 +420,32 @@ export default function App() {
       <div style={{ display: showCanvas ? 'block' : 'none' }}>
         <WebGLErrorBoundary>
           <Suspense fallback={<LoadingScreen />}>
-            <Canvas
-              shadows={{ type: THREE.PCFShadowMap }}
-              camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
-              style={{ width: '100vw', height: '100vh' }}
-              gl={{ antialias: true }}
-              onClick={() => {
-                if (activeScene === 'tavern' && state.selectedAdventurerId) {
-                  selectAdventurer(null);
-                }
-              }}
-            >
-              <SceneCameraController activeScene={activeScene} orbitRef={orbitRef} />
-
-              <OrbitControls
-                ref={orbitRef}
-                target={[0, 0, 0]}
-                maxPolarAngle={Math.PI / 2.4}
-                minPolarAngle={Math.PI / 6}
-                minDistance={8}
-                maxDistance={22}
-                enablePan={false}
-                enabled={activeScene === 'tavern'}
-                makeDefault
-              />
-
-              {/* Tavern scene — always mounted, visible only when active */}
-              <group visible={activeScene === 'tavern'}>
-                <TavernScene
-                  adventurers={state.adventurers}
-                  selectedAdventurerId={state.selectedAdventurerId}
-                  onSelectAdventurer={selectAdventurer}
-                  onAdventurerArrived={markAdventurerArrived}
-                  upgrades={state.upgrades}
-                />
-              </group>
-
-              {/* Owner's Room scene — always mounted, visible only when management is active */}
-              <group visible={activeScene === 'management'}>
-                <OwnerRoomScene />
-              </group>
-            </Canvas>
+            {!rendererPref.ready ? (
+              <LoadingScreen />
+            ) : usingWebGPU ? (
+              <WebGPUFallbackBoundary onFallback={handleWebGPUFallback}>
+                <CanvasWebGPU
+                  key="webgpu"
+                  shadows={{ type: THREE.PCFShadowMap }}
+                  camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
+                  style={{ width: '100vw', height: '100vh' }}
+                  onClick={sharedCanvasOnClick}
+                >
+                  {sceneChildren}
+                </CanvasWebGPU>
+              </WebGPUFallbackBoundary>
+            ) : (
+              <CanvasWebGL
+                key="webgl"
+                shadows={{ type: THREE.PCFShadowMap }}
+                camera={{ position: [0, 14, 12], fov: 45, near: 0.1, far: 100 }}
+                style={{ width: '100vw', height: '100vh' }}
+                gl={{ antialias: true }}
+                onClick={sharedCanvasOnClick}
+              >
+                {sceneChildren}
+              </CanvasWebGL>
+            )}
           </Suspense>
         </WebGLErrorBoundary>
 
@@ -446,6 +506,16 @@ export default function App() {
           onSpendUpgradePoint={spendUpgradePoint}
           onRefundUpgradePoint={refundUpgradePoint}
           onPrestigeAdventurer={prestigeAdventurer}
+        />
+      )}
+
+      {/* Options scene — pure 2D settings panel */}
+      {activeScene === 'options' && (
+        <OptionsScene
+          preference={rendererPref.preference}
+          effective={rendererPref.effective}
+          webGPUSupported={rendererPref.webGPUSupported}
+          onSetPreference={rendererPref.setPreference}
         />
       )}
     </div>
