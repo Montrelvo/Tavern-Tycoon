@@ -14,9 +14,9 @@ function createCracklingFire(ctx: AudioContext, master: GainNode) {
   noise.buffer = noiseBuffer;
   noise.loop = true;
 
-  const crackleGain = ctx.createGain();
-  crackleGain.gain.setValueAtTime(0, ctx.currentTime);
-  crackleGain.gain.linearRampToValueAtTime(0.018, ctx.currentTime + 5);
+  const fireGain = ctx.createGain();
+  fireGain.gain.setValueAtTime(0, ctx.currentTime);
+  fireGain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 6);
 
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
@@ -33,8 +33,8 @@ function createCracklingFire(ctx: AudioContext, master: GainNode) {
   noise.connect(bandpass);
   bandpass.connect(highpass);
   highpass.connect(crackleEnvGain);
-  crackleEnvGain.connect(crackleGain);
-  crackleGain.connect(master);
+  crackleEnvGain.connect(fireGain);
+  fireGain.connect(master);
   noise.start();
 
   function scheduleCrackle() {
@@ -49,6 +49,11 @@ function createCracklingFire(ctx: AudioContext, master: GainNode) {
 }
 
 function createTavernMurmur(ctx: AudioContext, master: GainNode) {
+  const murmurGain = ctx.createGain();
+  murmurGain.gain.setValueAtTime(0, ctx.currentTime);
+  murmurGain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 8);
+  murmurGain.connect(master);
+
   const freqs = [55, 110, 165];
   freqs.forEach((freq, i) => {
     const osc = ctx.createOscillator();
@@ -72,7 +77,7 @@ function createTavernMurmur(ctx: AudioContext, master: GainNode) {
 
     osc.connect(gain);
     gain.connect(filter);
-    filter.connect(master);
+    filter.connect(murmurGain);
     osc.start();
   });
 }
@@ -90,7 +95,7 @@ export function useTavernAmbience() {
     ctxRef.current = ctx;
 
     const master = ctx.createGain();
-    master.gain.setValueAtTime(0, ctx.currentTime);
+    master.gain.setValueAtTime(1, ctx.currentTime);
     master.connect(ctx.destination);
     masterRef.current = master;
 
