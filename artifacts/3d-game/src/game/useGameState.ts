@@ -136,7 +136,7 @@ const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0 };
 const MATERIAL_TYPES: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
 const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12 };
 const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic' };
-const ROOM_INCOME_INTERVAL = 60_000;
+const ROOM_INCOME_INTERVAL = 10_000;
 
 function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
   return ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
@@ -649,11 +649,11 @@ function reducer(state: GameState, action: GameAction): GameState {
       if (state.gamePhase !== 'playing') return state;
       const rooms = state.upgrades.rooms ?? 0;
       if (rooms === 0) return state;
-      const income = rooms * 3 * 2;
+      const income = rooms;
       return {
         ...state,
         gold: state.gold + income,
-        gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold this minute.`),
+        gameLog: addLog(state.gameLog, `Inn rooms earned +${income} gold (passive income).`),
       };
     }
 
