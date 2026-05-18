@@ -11,7 +11,7 @@ import {
   ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST,
   TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
-  BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS,
+  BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS, GEAR_RECIPES,
 } from './constants';
 import { calculateEffectivePower } from './questUtils';
 
@@ -890,6 +890,48 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'CRAFT_GEAR': {
+      if (state.gamePhase !== 'playing') return state;
+      if (!state.upgrades.basement) return state;
+      const recipe = GEAR_RECIPES.find(r => r.id === action.recipeId);
+      if (!recipe) return state;
+      if (state.materials.herbs < recipe.cost.herbs || state.materials.ore < recipe.cost.ore) return state;
+
+      const recruited = state.adventurers.filter(
+        a => a.status === 'recruited' || a.status === 'on-quest'
+      );
+      if (recruited.length === 0) return state;
+
+      const updatedAdventurers = state.adventurers.map(a => {
+        if (a.status !== 'recruited' && a.status !== 'on-quest') return a;
+        let updated = { ...a };
+        for (const effect of recipe.effects) {
+          if (effect.stat === 'attack') updated = { ...updated, attack: updated.attack + effect.amount };
+          else if (effect.stat === 'defense') updated = { ...updated, defense: updated.defense + effect.amount };
+          else if (effect.stat === 'maxHp') {
+            updated = { ...updated, maxHp: updated.maxHp + effect.amount, hp: updated.hp + effect.amount };
+          }
+        }
+        return updated;
+      });
+
+      const effectLabels = recipe.effects.map(e => {
+        const label = e.stat === 'maxHp' ? 'Max HP' : e.stat === 'attack' ? 'Attack' : 'Defense';
+        return `+${e.amount} ${label}`;
+      }).join(', ');
+
+      return {
+        ...state,
+        materials: {
+          ...state.materials,
+          herbs: state.materials.herbs - recipe.cost.herbs,
+          ore: state.materials.ore - recipe.cost.ore,
+        },
+        adventurers: updatedAdventurers,
+        gameLog: addLog(state.gameLog, `Crafted ${recipe.name}! All adventurers gained ${effectLabels}.`),
+      };
+    }
+
     default:
       return state;
   }
@@ -1077,6 +1119,10 @@ export function useGameState() {
     dispatch({ type: 'REFRESH_BOUNTIES' });
   }, []);
 
+  const craftGear = useCallback((recipeId: string) => {
+    dispatch({ type: 'CRAFT_GEAR', recipeId });
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -1094,5 +1140,6 @@ export function useGameState() {
     acceptBounty,
     abandonBounty,
     refreshBounties,
+    craftGear,
   };
 }

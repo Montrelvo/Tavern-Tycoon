@@ -169,3 +169,63 @@ export const STAT_DESCRIPTIONS: Record<BaseStat, string> = {
   int: 'Magical aptitude. Amplifies spell power and arcane knowledge.',
   wis: 'Perception and spirit. Enhances healing and resistance to curses.',
 };
+
+export interface GearRecipe {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  cost: { herbs: number; ore: number };
+  effects: Array<{ stat: 'attack' | 'defense' | 'maxHp'; amount: number }>;
+}
+
+export const GEAR_RECIPES: GearRecipe[] = [
+  {
+    id: 'sharpening_stone',
+    name: 'Sharpening Stone',
+    icon: '🪨',
+    description: 'Honed from raw ore, this whetstone brings every blade to a razor edge.',
+    cost: { herbs: 0, ore: 2 },
+    effects: [{ stat: 'attack', amount: 2 }],
+  },
+  {
+    id: 'herbal_salve',
+    name: 'Herbal Salve',
+    icon: '🌿',
+    description: 'A soothing balm brewed from field herbs that bolsters the constitution of all in your service.',
+    cost: { herbs: 2, ore: 0 },
+    effects: [{ stat: 'maxHp', amount: 20 }],
+  },
+  {
+    id: 'iron_plates',
+    name: 'Iron Plates',
+    icon: '🛡',
+    description: 'Hammered ore plates riveted to armour for meaningful additional protection.',
+    cost: { herbs: 0, ore: 3 },
+    effects: [{ stat: 'defense', amount: 2 }],
+  },
+  {
+    id: 'fortifying_tonic',
+    name: 'Fortifying Tonic',
+    icon: '⚗️',
+    description: 'A potent herbal draught that hardens sinew and floods veins with vigour.',
+    cost: { herbs: 3, ore: 0 },
+    effects: [{ stat: 'maxHp', amount: 35 }],
+  },
+  {
+    id: 'war_kit',
+    name: 'War Kit',
+    icon: '⚔️',
+    description: 'Ore-tipped weapons and herbal combat rations prepared for every fighter in the party.',
+    cost: { herbs: 2, ore: 2 },
+    effects: [{ stat: 'attack', amount: 2 }, { stat: 'maxHp', amount: 15 }],
+  },
+  {
+    id: 'bulwark_set',
+    name: 'Bulwark Set',
+    icon: '🪖',
+    description: 'Reinforced pauldrons and medicinal poultices that make adventurers a wall of steel and herb.',
+    cost: { herbs: 2, ore: 3 },
+    effects: [{ stat: 'defense', amount: 3 }, { stat: 'maxHp', amount: 20 }],
+  },
+];

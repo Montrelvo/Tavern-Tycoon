@@ -141,6 +141,7 @@ export default function App() {
     acceptBounty,
     abandonBounty,
     refreshBounties,
+    craftGear,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -251,6 +252,8 @@ export default function App() {
           tavernPrestige={state.tavernPrestige}
           onHireUpgrade={hireUpgrade}
           onSellMaterials={sellMaterials}
+          onCraftGear={craftGear}
+          recruitedCount={recruited.length}
         />
       )}
 

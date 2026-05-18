@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Upgrades, Materials } from '../game/types';
-import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST } from '../game/constants';
+import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST, GEAR_RECIPES } from '../game/constants';
 
 interface ManagementSceneProps {
   gold: number;
@@ -10,6 +10,8 @@ interface ManagementSceneProps {
   tavernPrestige: 0 | 1 | 2 | 3;
   onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
   onSellMaterials: () => void;
+  onCraftGear: (recipeId: string) => void;
+  recruitedCount: number;
 }
 
 const cardStyle: React.CSSProperties = {
@@ -159,7 +161,7 @@ function RoomSlot({ n, active }: { n: number; active: boolean }) {
   );
 }
 
-export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials }: ManagementSceneProps) {
+export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials, onCraftGear, recruitedCount }: ManagementSceneProps) {
   const rosterMax = ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
@@ -472,6 +474,183 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
               </div>
             )}
           </div>
+        )}
+
+        {/* Gear Crafting — only when basement is unlocked */}
+        {basement && (
+          <>
+            <div style={{ color: '#4a3a28', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', margin: '20px 0 10px' }}>
+              Gear Crafting
+            </div>
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 20 }}>⚒</span>
+                <div>
+                  <div style={sectionTitle}>Smithy &amp; Alchemist</div>
+                  <div style={sectionSubtitle}>
+                    Craft gear from herbs and ore — bonuses apply to all recruited adventurers
+                  </div>
+                </div>
+              </div>
+
+              {/* Material stock reminder */}
+              <div style={{
+                display: 'flex', gap: 10, marginBottom: 14,
+                background: 'rgba(0,0,0,0.3)', border: '1px solid #2a1a08',
+                borderRadius: 7, padding: '8px 12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 15 }}>🌿</span>
+                  <span style={{ color: '#c8960c', fontWeight: 'bold', fontSize: 14 }}>{materials.herbs}</span>
+                  <span style={{ color: '#7a6a5a', fontSize: 12 }}>Herbs</span>
+                </div>
+                <div style={{ color: '#3a2a18', fontSize: 14, alignSelf: 'center' }}>·</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 15 }}>⛏️</span>
+                  <span style={{ color: '#aaa', fontWeight: 'bold', fontSize: 14 }}>{materials.ore}</span>
+                  <span style={{ color: '#7a6a5a', fontSize: 12 }}>Ore</span>
+                </div>
+                {recruitedCount === 0 && (
+                  <div style={{ marginLeft: 'auto', color: '#7a6a5a', fontSize: 11, fontStyle: 'italic', alignSelf: 'center' }}>
+                    Recruit adventurers to equip
+                  </div>
+                )}
+              </div>
+
+              {/* Recipe cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {GEAR_RECIPES.map(recipe => {
+                  const canAffordHerbs = materials.herbs >= recipe.cost.herbs;
+                  const canAffordOre = materials.ore >= recipe.cost.ore;
+                  const canAfford = canAffordHerbs && canAffordOre;
+                  const hasRecruited = recruitedCount > 0;
+                  const canCraft = canAfford && hasRecruited;
+
+                  return (
+                    <div
+                      key={recipe.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 12,
+                        background: canCraft
+                          ? 'rgba(200,150,12,0.06)'
+                          : 'rgba(0,0,0,0.2)',
+                        border: canCraft
+                          ? '1px solid #c8960c44'
+                          : '1px solid #2a1a08',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {/* Icon */}
+                      <div style={{ fontSize: 26, flexShrink: 0, lineHeight: 1, marginTop: 2 }}>
+                        {recipe.icon}
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>
+                          {recipe.name}
+                        </div>
+                        <div style={{ color: '#7a6a5a', fontSize: 11, lineHeight: 1.4, marginBottom: 7 }}>
+                          {recipe.description}
+                        </div>
+
+                        {/* Effects */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                          {recipe.effects.map((eff, i) => {
+                            const statLabel = eff.stat === 'maxHp' ? 'Max HP' : eff.stat === 'attack' ? 'Attack' : 'Defense';
+                            const statColor = eff.stat === 'maxHp' ? '#e74c3c' : eff.stat === 'attack' ? '#e67e22' : '#3498db';
+                            return (
+                              <span key={i} style={{
+                                background: `rgba(${hexToRgbStr(statColor)},0.12)`,
+                                border: `1px solid ${statColor}44`,
+                                borderRadius: 4,
+                                color: statColor,
+                                fontSize: 11,
+                                fontWeight: 'bold',
+                                padding: '2px 7px',
+                              }}>
+                                +{eff.amount} {statLabel}
+                              </span>
+                            );
+                          })}
+                          <span style={{ color: '#4a3a28', fontSize: 11, alignSelf: 'center' }}>
+                            · all adventurers
+                          </span>
+                        </div>
+
+                        {/* Cost row — always show both herb and ore so players see the exact full cost */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ color: '#4a3a28', fontSize: 11 }}>Requires:</span>
+                          <span style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            background: canAffordHerbs ? 'rgba(200,150,12,0.1)' : 'rgba(200,50,50,0.1)',
+                            border: `1px solid ${canAffordHerbs ? '#c8960c55' : '#e74c3c55'}`,
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            color: canAffordHerbs ? '#c8960c' : '#e74c3c',
+                          }}>
+                            🌿 {recipe.cost.herbs} Herb{recipe.cost.herbs !== 1 ? 's' : ''}
+                            {recipe.cost.herbs > 0 && !canAffordHerbs && (
+                              <span style={{ fontWeight: 'normal', fontSize: 10, color: '#e74c3c' }}>
+                                &nbsp;({materials.herbs}/{recipe.cost.herbs})
+                              </span>
+                            )}
+                          </span>
+                          <span style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            background: canAffordOre ? 'rgba(170,170,170,0.08)' : 'rgba(200,50,50,0.1)',
+                            border: `1px solid ${canAffordOre ? '#aaa5' : '#e74c3c55'}`,
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            color: canAffordOre ? '#aaa' : '#e74c3c',
+                          }}>
+                            ⛏️ {recipe.cost.ore} Ore
+                            {recipe.cost.ore > 0 && !canAffordOre && (
+                              <span style={{ fontWeight: 'normal', fontSize: 10, color: '#e74c3c' }}>
+                                &nbsp;({materials.ore}/{recipe.cost.ore})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Craft button */}
+                      <button
+                        onClick={() => onCraftGear(recipe.id)}
+                        disabled={!canCraft}
+                        style={{
+                          flexShrink: 0,
+                          background: canCraft
+                            ? 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)'
+                            : '#1a0e05',
+                          border: canCraft ? '1px solid #a0631e' : '1px solid #2a1a08',
+                          borderRadius: 6,
+                          color: canCraft ? '#e8d5a0' : '#3a2510',
+                          fontFamily: 'serif',
+                          fontWeight: 'bold',
+                          fontSize: 13,
+                          padding: '7px 14px',
+                          cursor: canCraft ? 'pointer' : 'not-allowed',
+                          whiteSpace: 'nowrap',
+                          alignSelf: 'center',
+                        }}
+                      >
+                        Craft
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Prestige Upgrades */}

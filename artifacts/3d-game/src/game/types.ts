@@ -118,4 +118,5 @@ export type GameAction =
   | { type: 'PRESTIGE_ADVENTURER'; id: string }
   | { type: 'ACCEPT_BOUNTY'; bountyId: string }
   | { type: 'ABANDON_BOUNTY'; bountyId: string }
-  | { type: 'REFRESH_BOUNTIES' };
+  | { type: 'REFRESH_BOUNTIES' }
+  | { type: 'CRAFT_GEAR'; recipeId: string };
