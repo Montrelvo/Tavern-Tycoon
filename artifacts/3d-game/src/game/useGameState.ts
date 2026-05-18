@@ -53,7 +53,7 @@ const BOUNTY_POOL: BountyDefinition[] = [
 
 function generateBounties(): BountyQuest[] {
   const shuffled = [...BOUNTY_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3).map(b => ({
+  return shuffled.slice(0, 4).map(b => ({
     id: `bounty-${++bountyCounter}`,
     name: b.name,
     description: b.description,
@@ -64,6 +64,40 @@ function generateBounties(): BountyQuest[] {
     ...(b.materialReward ? { materialReward: b.materialReward } : {}),
     status: 'available' as const,
   }));
+}
+
+function generateOneBounty(existingNames: string[]): BountyQuest {
+  const available = BOUNTY_POOL.filter(b => !existingNames.includes(b.name));
+  const pool = available.length > 0 ? available : BOUNTY_POOL;
+  const b = pool[Math.floor(Math.random() * pool.length)];
+  return {
+    id: `bounty-${++bountyCounter}`,
+    name: b.name,
+    description: b.description,
+    targetMonsterType: b.targetMonsterType,
+    requiredKills: b.requiredKills,
+    currentKills: 0,
+    reward: b.reward,
+    ...(b.materialReward ? { materialReward: b.materialReward } : {}),
+    status: 'available' as const,
+  };
+}
+
+function generateOneQuest(existingNames: string[], questsCompleted: number, tavernPrestige: number): Quest {
+  const unlockedTiers = getUnlockedTiers(questsCompleted, tavernPrestige);
+  const pool = QUEST_POOL.filter(q => unlockedTiers.includes(q.tier));
+  const fallback = QUEST_POOL.filter(q => q.tier === 'common');
+  const source = (pool.length > 0 ? pool : fallback).filter(q => !existingNames.includes(q.name));
+  const finalSource = source.length > 0 ? source : (pool.length > 0 ? pool : fallback);
+  const tierWeights = getTierWeights(unlockedTiers);
+  const weightedPool: typeof QUEST_POOL = [];
+  for (const q of finalSource) {
+    const w = tierWeights[q.tier] ?? 1;
+    for (let i = 0; i < w; i++) weightedPool.push(q);
+  }
+  const candidates = weightedPool.length > 0 ? weightedPool : finalSource;
+  const picked = candidates[Math.floor(Math.random() * candidates.length)];
+  return { ...picked, id: `quest-${++questCounter}`, status: 'available' as const, assignedAdventurerIds: [] };
 }
 
 function pickName(): string {
@@ -174,7 +208,7 @@ function generateQuests(questsCompleted = 0, tavernPrestige = 0): Quest[] {
   const unlockedTiers = getUnlockedTiers(questsCompleted, tavernPrestige);
   const pool = QUEST_POOL.filter(q => unlockedTiers.includes(q.tier));
   const fallback = QUEST_POOL.filter(q => q.tier === 'common');
-  const source = pool.length >= 3 ? pool : fallback;
+  const source = pool.length >= 4 ? pool : fallback;
 
   const tierWeights = getTierWeights(unlockedTiers);
   const weightedPool: typeof QUEST_POOL = [];
@@ -185,7 +219,7 @@ function generateQuests(questsCompleted = 0, tavernPrestige = 0): Quest[] {
 
   const picked: typeof QUEST_POOL = [];
   const remaining = [...weightedPool];
-  while (picked.length < 3 && remaining.length > 0) {
+  while (picked.length < 4 && remaining.length > 0) {
     const idx = Math.floor(Math.random() * remaining.length);
     const candidate = remaining[idx];
     remaining.splice(idx, 1);
@@ -628,13 +662,35 @@ function reducer(state: GameState, action: GameAction): GameState {
         const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
         const newPhase: GameState['gamePhase'] = remainingRoster.length === 0 ? 'lost' : state.gamePhase;
 
+        const existingQuestNames = state.quests
+          .filter(q => q.id !== action.questId)
+          .map(q => q.name);
+        const replacementQuest = generateOneQuest(existingQuestNames, newQuestsCompleted, newPrestige);
+        const updatedQuests = state.quests.map(q =>
+          q.id === action.questId ? replacementQuest : q
+        );
+
+        const completedBountyIds = newBounties
+          .filter(b => b.status === 'completed')
+          .map(b => b.id);
+        let finalBounties = newBounties;
+        if (completedBountyIds.length > 0) {
+          let existingBountyNames = finalBounties.filter(b => b.status !== 'completed').map(b => b.name);
+          finalBounties = finalBounties.map(b => {
+            if (!completedBountyIds.includes(b.id)) return b;
+            const replacement = generateOneBounty(existingBountyNames);
+            existingBountyNames = [...existingBountyNames, replacement.name];
+            return replacement;
+          });
+        }
+
         return {
           ...state,
           gold: newGold + bountyGoldBonus,
           adventurers: newAdventurers,
           materials: newMaterials,
-          quests: state.quests.map(q => q.id === action.questId ? { ...q, status: 'completed' } : q),
-          bounties: newBounties,
+          quests: updatedQuests,
+          bounties: finalBounties,
           gamePhase: newPhase,
           gameLog: finalLog,
           questsCompleted: newQuestsCompleted,
@@ -663,10 +719,14 @@ function reducer(state: GameState, action: GameAction): GameState {
         const remainingRoster = newAdventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
         const newPhase: GameState['gamePhase'] = remainingRoster.length === 0 ? 'lost' : state.gamePhase;
 
+        const existingQuestNamesF = state.quests.filter(q => q.id !== action.questId).map(q => q.name);
+        const replacementQuestF = generateOneQuest(existingQuestNamesF, state.questsCompleted, state.tavernPrestige);
+        const updatedQuestsF = state.quests.map(q => q.id === action.questId ? replacementQuestF : q);
+
         return {
           ...state,
           adventurers: newAdventurers,
-          quests: state.quests.map(q => q.id === action.questId ? { ...q, status: 'failed' } : q),
+          quests: updatedQuestsF,
           gamePhase: newPhase,
           gameLog: finalLog,
         };
@@ -701,11 +761,35 @@ function reducer(state: GameState, action: GameAction): GameState {
       const activeQuests = state.quests.filter(q => q.status === 'active');
       const newQuests = generateQuests(state.questsCompleted, state.tavernPrestige).filter(nq =>
         !activeQuests.some(aq => aq.name === nq.name)
-      ).slice(0, 3 - activeQuests.length);
+      ).slice(0, 4 - activeQuests.length);
       return {
         ...state,
         quests: [...activeQuests, ...newQuests],
         gameLog: addLog(state.gameLog, 'New quests are posted on the board!'),
+      };
+    }
+
+    case 'REJECT_QUEST': {
+      if (state.gamePhase !== 'playing') return state;
+      const quest = state.quests.find(q => q.id === action.questId);
+      if (!quest || quest.status !== 'available') return state;
+      const existingNames = state.quests.filter(q => q.id !== action.questId).map(q => q.name);
+      const replacement = generateOneQuest(existingNames, state.questsCompleted, state.tavernPrestige);
+      return {
+        ...state,
+        quests: state.quests.map(q => q.id === action.questId ? replacement : q),
+      };
+    }
+
+    case 'REJECT_BOUNTY': {
+      if (state.gamePhase !== 'playing') return state;
+      const bounty = (state.bounties ?? []).find(b => b.id === action.bountyId);
+      if (!bounty || bounty.status !== 'available') return state;
+      const existingNames = (state.bounties ?? []).filter(b => b.id !== action.bountyId).map(b => b.name);
+      const replacement = generateOneBounty(existingNames);
+      return {
+        ...state,
+        bounties: (state.bounties ?? []).map(b => b.id === action.bountyId ? replacement : b),
       };
     }
 
@@ -917,7 +1001,7 @@ function reducer(state: GameState, action: GameAction): GameState {
       const bounty = bounties.find(b => b.id === action.bountyId);
       if (!bounty || bounty.status !== 'available') return state;
       const activeBountyCount = bounties.filter(b => b.status === 'active').length;
-      if (activeBountyCount >= 2) return state;
+      if (activeBountyCount >= 4) return state;
       return {
         ...state,
         bounties: bounties.map(b =>
@@ -945,7 +1029,7 @@ function reducer(state: GameState, action: GameAction): GameState {
       const activeBounties = bounties.filter(b => b.status === 'active');
       const partialBounties = bounties.filter(b => b.status === 'available' && b.currentKills > 0);
       const keptBounties = [...activeBounties, ...partialBounties];
-      const slotsToFill = 3 - keptBounties.length;
+      const slotsToFill = 4 - keptBounties.length;
       const newBounties = slotsToFill > 0
         ? generateBounties().filter(nb =>
             !keptBounties.some(kb => kb.name === nb.name)
@@ -1140,8 +1224,12 @@ export function useGameState() {
     dispatch({ type: 'DISPATCH_QUEST', questId, adventurerIds });
   }, []);
 
-  const refreshQuests = useCallback(() => {
-    dispatch({ type: 'REFRESH_QUESTS' });
+  const rejectQuest = useCallback((questId: string) => {
+    dispatch({ type: 'REJECT_QUEST', questId });
+  }, []);
+
+  const rejectBounty = useCallback((bountyId: string) => {
+    dispatch({ type: 'REJECT_BOUNTY', bountyId });
   }, []);
 
   const markAdventurerArrived = useCallback((id: string, position: [number, number, number]) => {
@@ -1186,10 +1274,6 @@ export function useGameState() {
     dispatch({ type: 'ABANDON_BOUNTY', bountyId });
   }, []);
 
-  const refreshBounties = useCallback(() => {
-    dispatch({ type: 'REFRESH_BOUNTIES' });
-  }, []);
-
   const craftGear = useCallback((recipeId: string, adventurerId: string) => {
     dispatch({ type: 'CRAFT_GEAR', recipeId, adventurerId });
   }, []);
@@ -1200,7 +1284,8 @@ export function useGameState() {
     selectAdventurer,
     toggleQuestBoard,
     dispatchQuest,
-    refreshQuests,
+    rejectQuest,
+    rejectBounty,
     markAdventurerArrived,
     removeAdventurer,
     newGame,
@@ -1210,7 +1295,6 @@ export function useGameState() {
     prestigeAdventurer,
     acceptBounty,
     abandonBounty,
-    refreshBounties,
     craftGear,
   };
 }
