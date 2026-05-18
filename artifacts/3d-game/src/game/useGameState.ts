@@ -8,7 +8,7 @@ import {
   SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_MAX, ADVENTURER_LEAVE_TIME,
   XP_THRESHOLDS, MAX_LEVEL, POWER_PER_LEVEL,
   WANDER_INTERVAL_MIN, WANDER_INTERVAL_MAX, HP_RECOVERY_INTERVAL,
-  ROSTER_CAPS,
+  ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST,
   TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
   BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS,
@@ -125,7 +125,7 @@ function getLevelForXp(xp: number): number {
 const DEFAULT_UPGRADES = {
   cook: 0 as const,
   bard: false,
-  rosterSlots: 1 as const,
+  rosterSlots: 0,
   rooms: 0 as const,
   basement: false,
   trainingGrounds: false,
@@ -144,8 +144,8 @@ const MONSTER_PART_DROPS: Record<string, Array<keyof Materials>> = {
 };
 const ROOM_INCOME_INTERVAL = 10_000;
 
-function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
-  return ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
+function getRosterMax(upgrades: { rosterSlots?: number }): number {
+  return ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
 }
 
 function buildFreshState(): GameState {
@@ -207,7 +207,7 @@ function loadFromStorage(): GameState {
     const mergedUpgrades = {
       ...DEFAULT_UPGRADES,
       ...(parsed.upgrades ?? {}),
-      rosterSlots: (parsed.upgrades?.rosterSlots ?? 1) as 1 | 2 | 3,
+      rosterSlots: Math.max(0, (parsed.upgrades?.rosterSlots ?? 1) - 1),
       rooms: (parsed.upgrades?.rooms ?? 0) as 0 | 1 | 2,
       basement: parsed.upgrades?.basement ?? false,
       trainingGrounds: parsed.upgrades?.trainingGrounds ?? false,
@@ -580,22 +580,15 @@ function reducer(state: GameState, action: GameAction): GameState {
           gameLog: addLog(state.gameLog, 'A bard joins your tavern, filling it with music!'),
         };
       }
-      if (upgrade === 'roster_2') {
-        if ((state.upgrades.rosterSlots ?? 1) >= 2 || state.gold < 100) return state;
+      if (upgrade === 'roster_expand') {
+        if (state.gold < ROSTER_UPGRADE_COST) return state;
+        const newSlots = (state.upgrades.rosterSlots ?? 0) + 1;
+        const newMax = ROSTER_BASE + newSlots * ROSTER_UPGRADE_SIZE;
         return {
           ...state,
-          gold: state.gold - 100,
-          upgrades: { ...state.upgrades, rosterSlots: 2 },
-          gameLog: addLog(state.gameLog, 'Roster expanded! You can now recruit up to 8 adventurers.'),
-        };
-      }
-      if (upgrade === 'roster_3') {
-        if ((state.upgrades.rosterSlots ?? 1) >= 3 || state.gold < 200) return state;
-        return {
-          ...state,
-          gold: state.gold - 200,
-          upgrades: { ...state.upgrades, rosterSlots: 3 },
-          gameLog: addLog(state.gameLog, 'Full company assembled! You can now recruit up to 12 adventurers.'),
+          gold: state.gold - ROSTER_UPGRADE_COST,
+          upgrades: { ...state.upgrades, rosterSlots: newSlots },
+          gameLog: addLog(state.gameLog, `Roster expanded! You can now recruit up to ${newMax} adventurers.`),
         };
       }
       if (upgrade === 'rooms') {
@@ -887,7 +880,7 @@ export function useGameState() {
     dispatch({ type: 'NEW_GAME', freshState });
   }, []);
 
-  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => {
+  const hireUpgrade = useCallback((upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => {
     dispatch({ type: 'HIRE_UPGRADE', upgrade });
   }, []);
 

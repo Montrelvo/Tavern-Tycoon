@@ -3,7 +3,7 @@ import type { Adventurer, Quest, Upgrades } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
   ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
-  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS, CLASS_STAT_COLORS, ROSTER_CAPS,
+  QUEST_TYPE_LABELS, QUEST_TYPE_COLORS, CLASS_STAT_COLORS, ROSTER_BASE, ROSTER_UPGRADE_SIZE,
   PRESTIGE_CLASS_LABELS, PRESTIGE_CLASS_COLORS, PRESTIGE_CLASS_PASSIVE_LABELS,
   PRESTIGE_CLASS_FOR, TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST,
@@ -1083,7 +1083,7 @@ export function HUD({
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
   const activeQuests = quests.filter(q => q.status === 'active');
-  const rosterMax = ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
+  const rosterMax = ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
 
   const selectedAdv = selectedAdventurerId
     ? adventurers.find(a => a.id === selectedAdventurerId) ?? null

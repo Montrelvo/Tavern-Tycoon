@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Upgrades, Materials } from '../game/types';
-import { ROSTER_CAPS } from '../game/constants';
+import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST } from '../game/constants';
 
 interface ManagementSceneProps {
   gold: number;
@@ -8,7 +8,7 @@ interface ManagementSceneProps {
   materials: Materials;
   rosterCount: number;
   tavernPrestige: 0 | 1 | 2 | 3;
-  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_2' | 'roster_3' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
+  onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
   onSellMaterials: () => void;
 }
 
@@ -160,7 +160,7 @@ function RoomSlot({ n, active }: { n: number; active: boolean }) {
 }
 
 export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials }: ManagementSceneProps) {
-  const rosterMax = ROSTER_CAPS[(upgrades.rosterSlots ?? 1) - 1];
+  const rosterMax = ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
   const roomIncomePm = rooms * 3 * 2;
@@ -575,58 +575,28 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            {[
-              { slots: 1 as const, label: 'Small Crew', max: 5, cost: null },
-              { slots: 2 as const, label: 'Guild Band', max: 8, cost: 100 },
-              { slots: 3 as const, label: 'Full Company', max: 12, cost: 200 },
-            ].map(tier => {
-              const active = upgrades.rosterSlots === tier.slots;
-              const purchased = (upgrades.rosterSlots ?? 1) >= tier.slots;
-              return (
-                <div
-                  key={tier.slots}
-                  style={{
-                    flex: 1,
-                    background: active ? 'rgba(200,150,12,0.12)' : purchased ? 'rgba(46,204,113,0.06)' : 'rgba(0,0,0,0.2)',
-                    border: active ? '2px solid #c8960c' : purchased ? '1px solid #2ecc7166' : '1px solid #2a1a08',
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontSize: 18, marginBottom: 4 }}>
-                    {purchased ? (active ? '⭐' : '✓') : '🔒'}
-                  </div>
-                  <div style={{ color: active ? '#ffd700' : purchased ? '#2ecc71' : '#4a3a28', fontWeight: 'bold', fontSize: 13 }}>
-                    {tier.label}
-                  </div>
-                  <div style={{ color: '#7a6a5a', fontSize: 12, margin: '2px 0' }}>
-                    Max {tier.max} adventurers
-                  </div>
-                  {tier.cost && !purchased && (
-                    <div style={{ color: '#c8960c', fontSize: 12 }}>{tier.cost}g</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ color: '#7a6a5a', fontSize: 13 }}>
-              Current roster: <span style={{ color: '#e8d5a0' }}>{rosterCount}</span> / {rosterMax}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(upgrades.rosterSlots ?? 1) < 2 && (
-                <BuyButton label="Expand to 8 slots" cost={100} canAfford={gold >= 100} onClick={() => onHireUpgrade('roster_2')} />
-              )}
-              {(upgrades.rosterSlots ?? 1) === 2 && (
-                <BuyButton label="Expand to 12 slots" cost={200} canAfford={gold >= 200} onClick={() => onHireUpgrade('roster_3')} />
-              )}
-              {(upgrades.rosterSlots ?? 1) === 3 && (
-                <PurchasedBadge label="Max capacity reached" />
-              )}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 16,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid #2a1a08',
+            borderRadius: 8, padding: '12px 16px', marginBottom: 16,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>
+                {rosterMax} adventurer slots
+              </div>
+              <div style={{ color: '#7a6a5a', fontSize: 12, marginTop: 2 }}>
+                Base 10 + {(upgrades.rosterSlots ?? 0)} upgrade{(upgrades.rosterSlots ?? 0) !== 1 ? 's' : ''} × {ROSTER_UPGRADE_SIZE}
+              </div>
+              <div style={{ color: '#7a6a5a', fontSize: 12, marginTop: 4 }}>
+                Current roster: <span style={{ color: '#e8d5a0' }}>{rosterCount}</span> / {rosterMax}
+              </div>
             </div>
+            <BuyButton
+              label={`+${ROSTER_UPGRADE_SIZE} slots`}
+              cost={ROSTER_UPGRADE_COST}
+              canAfford={gold >= ROSTER_UPGRADE_COST}
+              onClick={() => onHireUpgrade('roster_expand')}
+            />
           </div>
         </div>
       </div>
