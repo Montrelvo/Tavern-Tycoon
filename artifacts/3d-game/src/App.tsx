@@ -474,10 +474,6 @@ export default function App() {
             onRejectBounty={rejectBounty}
             onPlaySound={playSound}
             onNewGame={newGame}
-            onSave={manualSave}
-            onExportSave={exportSave}
-            onImportSave={importSave}
-            lastAutoSavedAt={lastAutoSavedAt}
           />
         )}
 
@@ -516,6 +512,11 @@ export default function App() {
           effective={rendererPref.effective}
           webGPUSupported={rendererPref.webGPUSupported}
           onSetPreference={rendererPref.setPreference}
+          onNewGame={newGame}
+          onSave={manualSave}
+          onExportSave={exportSave}
+          onImportSave={importSave}
+          lastAutoSavedAt={lastAutoSavedAt}
         />
       )}
     </div>

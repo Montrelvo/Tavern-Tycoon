@@ -133,21 +133,6 @@ interface HUDProps {
   onRejectBounty: (bountyId: string) => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
-  onSave: () => number | null;
-  onExportSave: () => void;
-  onImportSave: (file: File) => void;
-  lastAutoSavedAt: number | null;
-}
-
-function formatRelativeTime(ts: number, now: number): string {
-  const diffMs = now - ts;
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 10) return 'just now';
-  if (diffSec < 60) return `${diffSec}s ago`;
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  return `${diffHr}h ago`;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -1586,7 +1571,7 @@ export function HUD({
   questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRejectQuest,
   onAcceptBounty, onAbandonBounty, onRejectBounty, onPlaySound,
-  onNewGame, onSave, onExportSave, onImportSave, lastAutoSavedAt,
+  onNewGame,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
@@ -1601,30 +1586,7 @@ export function HUD({
   const shownNotificationIdRef = useRef<number | null>(null);
   const idleRecruits = adventurers.filter(a => a.status === 'recruited');
   const [partyCap, setPartyCap] = useState<number>(1);
-  const [saveFlash, setSaveFlash] = useState(false);
-  const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
-  const importFileRef = useRef<HTMLInputElement | null>(null);
-  const [now, setNow] = useState<number>(() => Date.now());
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
-    };
-  }, []);
-
-  const handleSave = () => {
-    const ok = onSave();
-    if (ok === null) return;
-    setSaveFlash(true);
-    if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
-    saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 1800);
-  };
 
   useEffect(() => {
     const count = idleRecruits.length;
@@ -1772,127 +1734,6 @@ export function HUD({
         </div>
       </div>
 
-      {/* Save + New Game buttons — fixed top-right */}
-      <div style={{
-        position: 'fixed', top: 12, right: 16,
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
-        pointerEvents: 'auto',
-        zIndex: 110,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Auto-save indicator */}
-          {lastAutoSavedAt && !saveFlash && (
-            <span style={{
-              color: '#4a7a55',
-              fontFamily: 'serif',
-              fontSize: 9,
-              fontStyle: 'italic',
-              letterSpacing: 0.2,
-            }}>
-              Auto-saved {formatRelativeTime(lastAutoSavedAt, now)}
-            </span>
-          )}
-          {/* "Saved!" flash (manual save only) */}
-          {saveFlash && (
-            <span style={{
-              color: '#2ecc71',
-              fontFamily: 'serif',
-              fontSize: 10,
-              fontWeight: 'bold',
-              letterSpacing: 0.3,
-              animation: 'none',
-              opacity: 1,
-            }}>
-              ✓ Saved!
-            </span>
-          )}
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            title="Save your progress"
-            style={{
-              background: 'rgba(10,40,15,0.85)',
-              border: '1px solid #2a6a35',
-              borderRadius: 5,
-              color: '#5aaa6a',
-              fontFamily: 'serif',
-              fontSize: 10,
-              padding: '2px 7px',
-              cursor: 'pointer',
-              letterSpacing: 0.3,
-            }}
-          >
-            Save
-          </button>
-          {/* Export Save button */}
-          <button
-            onClick={onExportSave}
-            title="Download your save file as a backup"
-            style={{
-              background: 'rgba(10,25,45,0.85)',
-              border: '1px solid #2a4a7a',
-              borderRadius: 5,
-              color: '#6a9adf',
-              fontFamily: 'serif',
-              fontSize: 10,
-              padding: '2px 7px',
-              cursor: 'pointer',
-              letterSpacing: 0.3,
-            }}
-          >
-            Export
-          </button>
-          {/* Import Save button */}
-          <button
-            onClick={() => importFileRef.current?.click()}
-            title="Load a previously exported save file"
-            style={{
-              background: 'rgba(30,15,45,0.85)',
-              border: '1px solid #5a2a7a',
-              borderRadius: 5,
-              color: '#aa6adf',
-              fontFamily: 'serif',
-              fontSize: 10,
-              padding: '2px 7px',
-              cursor: 'pointer',
-              letterSpacing: 0.3,
-            }}
-          >
-            Import
-          </button>
-          {/* Hidden file input for import */}
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onImportSave(file);
-              e.target.value = '';
-            }}
-          />
-          {/* New Game button */}
-          <button
-            onClick={() => setShowNewGameConfirm(true)}
-            title="Wipe save and start a new game"
-            style={{
-              background: 'rgba(60,20,5,0.8)',
-              border: '1px solid #5c3315',
-              borderRadius: 5,
-              color: '#7a6a5a',
-              fontFamily: 'serif',
-              fontSize: 10,
-              padding: '2px 7px',
-              cursor: 'pointer',
-              letterSpacing: 0.3,
-            }}
-          >
-            New Game
-          </button>
-        </div>
-      </div>
-
       {/* Left panel */}
       <LeftPanel
         roster={roster}
@@ -1977,72 +1818,6 @@ export function HUD({
         </div>
       )}
 
-      {/* New Game confirmation modal */}
-      {showNewGameConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.72)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 400,
-          fontFamily: 'serif',
-          pointerEvents: 'auto',
-        }}>
-          <div style={{
-            background: 'rgba(15,8,2,0.98)',
-            border: '2px solid #8a3a1a',
-            borderRadius: 14,
-            padding: '28px 32px',
-            minWidth: 300,
-            maxWidth: 360,
-            boxShadow: '0 0 40px rgba(200,80,20,0.25), 0 8px 32px rgba(0,0,0,0.95)',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>⚠️</div>
-            <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>
-              Start a New Game?
-            </div>
-            <div style={{ color: '#888', fontSize: 13, lineHeight: 1.5, marginBottom: 22 }}>
-              This will permanently erase your current save, including all gold, adventurers, and progress. This cannot be undone.
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setShowNewGameConfirm(false)}
-                style={{
-                  flex: 1,
-                  background: '#2a1a08',
-                  border: '1px solid #5c3315',
-                  borderRadius: 7,
-                  color: '#c8b090',
-                  fontFamily: 'serif',
-                  fontWeight: 'bold',
-                  fontSize: 14,
-                  padding: '9px 0',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setShowNewGameConfirm(false); onNewGame(); }}
-                style={{
-                  flex: 1,
-                  background: 'linear-gradient(180deg, #8a2a0a 0%, #5c1a08 100%)',
-                  border: '1px solid #c0401a',
-                  borderRadius: 7,
-                  color: '#e8d5a0',
-                  fontFamily: 'serif',
-                  fontWeight: 'bold',
-                  fontSize: 14,
-                  padding: '9px 0',
-                  cursor: 'pointer',
-                }}
-              >
-                Wipe &amp; Start Over
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

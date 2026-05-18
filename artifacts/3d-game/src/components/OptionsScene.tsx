@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { RendererPreference } from '../game/useRendererPreference';
 
 interface OptionsSceneProps {
@@ -5,6 +6,22 @@ interface OptionsSceneProps {
   effective: RendererPreference;
   webGPUSupported: boolean;
   onSetPreference: (next: RendererPreference) => void;
+  onNewGame: () => void;
+  onSave: () => number | null;
+  onExportSave: () => void;
+  onImportSave: (file: File) => void;
+  lastAutoSavedAt: number | null;
+}
+
+function formatRelativeTime(ts: number, now: number): string {
+  const diffMs = now - ts;
+  const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+  if (diffSec < 10) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr}h ago`;
 }
 
 const CARD_STYLE_BASE: React.CSSProperties = {
@@ -90,13 +107,50 @@ function RendererCard({
   );
 }
 
+const ACTION_BTN_BASE: React.CSSProperties = {
+  fontFamily: 'serif',
+  fontWeight: 'bold',
+  fontSize: 13,
+  padding: '9px 18px',
+  borderRadius: 7,
+  cursor: 'pointer',
+  letterSpacing: 0.3,
+};
+
 export function OptionsScene({
   preference,
   effective,
   webGPUSupported,
   onSetPreference,
+  onNewGame,
+  onSave,
+  onExportSave,
+  onImportSave,
+  lastAutoSavedAt,
 }: OptionsSceneProps) {
   const fallbackActive = preference === 'webgpu' && effective === 'webgl';
+  const importFileRef = useRef<HTMLInputElement | null>(null);
+  const [saveFlash, setSaveFlash] = useState(false);
+  const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => () => {
+    if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
+  }, []);
+
+  const handleSave = () => {
+    const ok = onSave();
+    if (ok == null) return;
+    setSaveFlash(true);
+    if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
+    saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 1800);
+  };
 
   return (
     <div style={{
@@ -119,8 +173,104 @@ export function OptionsScene({
           Options
         </h1>
         <p style={{ margin: '0 0 28px', color: '#8a7a60', fontSize: 14 }}>
-          Tune how the tavern is drawn on your machine.
+          Manage your save and tune how the tavern is drawn on your machine.
         </p>
+
+        <section style={{ marginBottom: 36 }}>
+          <h2 style={{
+            margin: '0 0 6px',
+            fontSize: 18,
+            color: '#c9b290',
+            borderBottom: '1px solid #3d2410',
+            paddingBottom: 6,
+          }}>
+            Save &amp; Progress
+          </h2>
+          <p style={{ margin: '0 0 14px', color: '#8a7a60', fontSize: 13 }}>
+            Your game saves automatically. You can also save manually, export your save as a backup, or import a save file.
+          </p>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 16,
+            color: lastAutoSavedAt ? '#4a7a55' : '#5a5040',
+            fontSize: 12,
+            fontStyle: 'italic',
+          }}>
+            <span>
+              {saveFlash
+                ? <span style={{ color: '#2ecc71', fontStyle: 'normal', fontWeight: 'bold' }}>✓ Saved!</span>
+                : lastAutoSavedAt
+                  ? <>Auto-saved {formatRelativeTime(lastAutoSavedAt, now)}</>
+                  : 'No auto-save yet — make a change to trigger one.'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <button
+              onClick={handleSave}
+              title="Save your progress right now"
+              style={{
+                ...ACTION_BTN_BASE,
+                background: 'linear-gradient(180deg, #2a6a35 0%, #1a4a25 100%)',
+                border: '1px solid #3a8a45',
+                color: '#d8f0d8',
+              }}
+            >
+              Save Now
+            </button>
+            <button
+              onClick={onExportSave}
+              title="Download your save file as a backup"
+              style={{
+                ...ACTION_BTN_BASE,
+                background: 'linear-gradient(180deg, #2a4a7a 0%, #15305c 100%)',
+                border: '1px solid #3a6aaa',
+                color: '#cfe0f5',
+              }}
+            >
+              Export Save
+            </button>
+            <button
+              onClick={() => importFileRef.current?.click()}
+              title="Load a previously exported save file"
+              style={{
+                ...ACTION_BTN_BASE,
+                background: 'linear-gradient(180deg, #5a2a7a 0%, #3a155c 100%)',
+                border: '1px solid #7a3aaa',
+                color: '#e0cff5',
+              }}
+            >
+              Import Save
+            </button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportSave(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => setShowNewGameConfirm(true)}
+              title="Wipe your save and start over"
+              style={{
+                ...ACTION_BTN_BASE,
+                background: 'linear-gradient(180deg, #8a2a0a 0%, #5c1a08 100%)',
+                border: '1px solid #c0401a',
+                color: '#f5d8c8',
+                marginLeft: 'auto',
+              }}
+            >
+              New Game
+            </button>
+          </div>
+        </section>
 
         <section>
           <h2 style={{
@@ -171,6 +321,71 @@ export function OptionsScene({
           )}
         </section>
       </div>
+
+      {showNewGameConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.72)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 400,
+          fontFamily: 'serif',
+        }}>
+          <div style={{
+            background: 'rgba(15,8,2,0.98)',
+            border: '2px solid #8a3a1a',
+            borderRadius: 14,
+            padding: '28px 32px',
+            minWidth: 300,
+            maxWidth: 360,
+            boxShadow: '0 0 40px rgba(200,80,20,0.25), 0 8px 32px rgba(0,0,0,0.95)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>⚠️</div>
+            <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>
+              Start a New Game?
+            </div>
+            <div style={{ color: '#888', fontSize: 13, lineHeight: 1.5, marginBottom: 22 }}>
+              This will permanently erase your current save, including all gold, adventurers, and progress. This cannot be undone.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowNewGameConfirm(false)}
+                style={{
+                  flex: 1,
+                  background: '#2a1a08',
+                  border: '1px solid #5c3315',
+                  borderRadius: 7,
+                  color: '#c8b090',
+                  fontFamily: 'serif',
+                  fontWeight: 'bold',
+                  fontSize: 14,
+                  padding: '9px 0',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowNewGameConfirm(false); onNewGame(); }}
+                style={{
+                  flex: 1,
+                  background: 'linear-gradient(180deg, #8a2a0a 0%, #5c1a08 100%)',
+                  border: '1px solid #c0401a',
+                  borderRadius: 7,
+                  color: '#e8d5a0',
+                  fontFamily: 'serif',
+                  fontWeight: 'bold',
+                  fontSize: 14,
+                  padding: '9px 0',
+                  cursor: 'pointer',
+                }}
+              >
+                Wipe &amp; Start Over
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
