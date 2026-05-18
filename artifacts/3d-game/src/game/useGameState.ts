@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useCallback, useRef } from 'react';
-import type { GameState, GameAction, Adventurer, Quest, Materials } from './types';
-import type { AdventurerClass } from './types';
+import type { GameState, GameAction, Adventurer, Quest, Materials, BountyQuest } from './types';
+import type { AdventurerClass, QuestType } from './types';
 import {
   ADVENTURER_NAMES, ADVENTURER_CLASSES, CLASS_LABELS,
   QUEST_POOL, MAX_PARTY_SIZE,
@@ -19,7 +19,45 @@ const SAVE_KEY = 'tavern_save_v1';
 
 let adventurerCounter = 0;
 let questCounter = 0;
+let bountyCounter = 0;
 const usedNames = new Set<string>();
+
+interface BountyDefinition {
+  name: string;
+  description: string;
+  targetMonsterType: QuestType;
+  requiredKills: number;
+  reward: number;
+}
+
+const BOUNTY_POOL: BountyDefinition[] = [
+  { name: 'Beast Slayer', description: 'Beasts ravage the countryside. Adventurers who hunt them earn a bounty.', targetMonsterType: 'beast', requiredKills: 3, reward: 75 },
+  { name: 'Dire Wolf Culling', description: 'The wolf packs have grown bold. Reduce their numbers for a reward.', targetMonsterType: 'beast', requiredKills: 2, reward: 50 },
+  { name: 'Monster Hunter', description: 'Bring proof of five beast kills to the Hunters\' Lodge.', targetMonsterType: 'beast', requiredKills: 5, reward: 120 },
+  { name: 'Arcane Purge', description: 'Magical disturbances haunt the region. Resolve arcane threats for coin.', targetMonsterType: 'arcane', requiredKills: 3, reward: 90 },
+  { name: 'Relic Seeker', description: 'The mages\' council offers gold for arcane quest completions.', targetMonsterType: 'arcane', requiredKills: 2, reward: 60 },
+  { name: 'Void Hunter', description: 'Stamp out five arcane threats for a generous reward.', targetMonsterType: 'arcane', requiredKills: 5, reward: 140 },
+  { name: 'Shadow Operative', description: 'The Thieves\' Guild needs stealth operatives for covert work.', targetMonsterType: 'stealth', requiredKills: 3, reward: 80 },
+  { name: 'Silent Blade Contract', description: 'Complete two stealth missions for the Guild\'s bounty prize.', targetMonsterType: 'stealth', requiredKills: 2, reward: 55 },
+  { name: 'Ghost Protocol', description: 'Five stealth completions earn you the Guild\'s highest honours.', targetMonsterType: 'stealth', requiredKills: 5, reward: 130 },
+  { name: 'Battlefield Veteran', description: 'Survive three combat engagements and earn a soldier\'s bounty.', targetMonsterType: 'combat', requiredKills: 3, reward: 85 },
+  { name: 'War Hero', description: 'Two victories in direct combat earns a commander\'s reward.', targetMonsterType: 'combat', requiredKills: 2, reward: 55 },
+  { name: 'Iron Warlord', description: 'Five combat victories — only the strongest earn this bounty.', targetMonsterType: 'combat', requiredKills: 5, reward: 150 },
+];
+
+function generateBounties(): BountyQuest[] {
+  const shuffled = [...BOUNTY_POOL].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3).map(b => ({
+    id: `bounty-${++bountyCounter}`,
+    name: b.name,
+    description: b.description,
+    targetMonsterType: b.targetMonsterType,
+    requiredKills: b.requiredKills,
+    currentKills: 0,
+    reward: b.reward,
+    status: 'available' as const,
+  }));
+}
 
 function pickName(): string {
   const unused = ADVENTURER_NAMES.filter(n => !usedNames.has(n));
@@ -153,6 +191,7 @@ function buildFreshState(): GameState {
     gold: 30,
     adventurers: [],
     quests: generateQuests(),
+    bounties: generateBounties(),
     gameLog: ['Your tavern is open. Adventurers will arrive soon...'],
     gamePhase: 'playing',
     selectedAdventurerId: null,
@@ -194,6 +233,10 @@ function syncCountersFromState(state: GameState) {
     const num = parseInt(quest.id.replace('quest-', ''), 10);
     if (!isNaN(num) && num > questCounter) questCounter = num;
   }
+  for (const bounty of (state.bounties ?? [])) {
+    const num = parseInt(bounty.id.replace('bounty-', ''), 10);
+    if (!isNaN(num) && num > bountyCounter) bountyCounter = num;
+  }
 }
 
 function loadFromStorage(): GameState {
@@ -218,9 +261,15 @@ function loadFromStorage(): GameState {
       ...DEFAULT_MATERIALS,
       ...(parsed.materials ?? {}),
     };
+    const rawParsed = parsed as typeof parsed & { bounties?: BountyQuest[] };
+    const persistedBounties: BountyQuest[] = (rawParsed.bounties ?? []).filter(
+      b => b.status === 'active' || b.status === 'available'
+    );
+    const mergedBounties = persistedBounties.length > 0 ? persistedBounties : generateBounties();
     const restored: GameState = {
       ...parsed,
       adventurers: persistedAdventurers,
+      bounties: mergedBounties,
       selectedAdventurerId: null,
       showQuestBoard: false,
       upgrades: mergedUpgrades,
@@ -427,6 +476,36 @@ function reducer(state: GameState, action: GameAction): GameState {
         const newGold = state.gold + quest.reward;
         const newQuestsCompleted = state.questsCompleted + 1;
 
+        const killTokenType = quest.questType;
+        const hadMatchingActiveBounty = (state.bounties ?? []).some(
+          b => b.status === 'active' && b.targetMonsterType === killTokenType
+        );
+
+        let newBounties = state.bounties ?? [];
+        let bountyGoldBonus = 0;
+        newBounties = newBounties.map(bounty => {
+          if (bounty.status !== 'active') return bounty;
+          if (bounty.targetMonsterType !== quest.questType) return bounty;
+          const newKills = bounty.currentKills + 1;
+          if (newKills >= bounty.requiredKills) {
+            bountyGoldBonus += bounty.reward;
+            finalLog = addLog(finalLog, `Bounty "${bounty.name}" completed! Earned ${bounty.reward} gold!`);
+            return { ...bounty, currentKills: newKills, status: 'completed' as const };
+          }
+          return { ...bounty, currentKills: newKills };
+        });
+
+        if (!hadMatchingActiveBounty) {
+          const partMap: Record<string, keyof Materials> = { beast: 'pelts', combat: 'bones', arcane: 'venom', stealth: 'pelts' };
+          const part = partMap[killTokenType] ?? 'bones';
+          if (state.upgrades.basement) {
+            newMaterials[part] += 1;
+            finalLog = addLog(finalLog, `Kill token stored as ${MATERIAL_LABELS[part]} in the basement.`);
+          } else {
+            finalLog = addLog(finalLog, `Kill token (${MATERIAL_LABELS[part]}) lost — excavate the basement to store it.`);
+          }
+        }
+
         let newPrestige: 0 | 1 | 2 | 3 = state.tavernPrestige;
         for (let i = TAVERN_PRESTIGE_THRESHOLDS.length - 1; i >= 0; i--) {
           if (newQuestsCompleted >= TAVERN_PRESTIGE_THRESHOLDS[i]) {
@@ -443,10 +522,11 @@ function reducer(state: GameState, action: GameAction): GameState {
 
         return {
           ...state,
-          gold: newGold,
+          gold: newGold + bountyGoldBonus,
           adventurers: newAdventurers,
           materials: newMaterials,
           quests: state.quests.map(q => q.id === action.questId ? { ...q, status: 'completed' } : q),
+          bounties: newBounties,
           gamePhase: newPhase,
           gameLog: finalLog,
           questsCompleted: newQuestsCompleted,
@@ -722,6 +802,36 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ACCEPT_BOUNTY': {
+      if (state.gamePhase !== 'playing') return state;
+      const bounties = state.bounties ?? [];
+      const bounty = bounties.find(b => b.id === action.bountyId);
+      if (!bounty || bounty.status !== 'available') return state;
+      const activeBountyCount = bounties.filter(b => b.status === 'active').length;
+      if (activeBountyCount >= 2) return state;
+      return {
+        ...state,
+        bounties: bounties.map(b =>
+          b.id === action.bountyId ? { ...b, status: 'active' as const } : b
+        ),
+        gameLog: addLog(state.gameLog, `Bounty accepted: "${bounty.name}"! Complete ${bounty.requiredKills} ${bounty.targetMonsterType} quests.`),
+      };
+    }
+
+    case 'REFRESH_BOUNTIES': {
+      if (state.gamePhase !== 'playing') return state;
+      const bounties = state.bounties ?? [];
+      const activeBounties = bounties.filter(b => b.status === 'active');
+      const newBounties = generateBounties().filter(nb =>
+        !activeBounties.some(ab => ab.name === nb.name)
+      ).slice(0, 3 - activeBounties.length);
+      return {
+        ...state,
+        bounties: [...activeBounties, ...newBounties],
+        gameLog: addLog(state.gameLog, 'New bounties posted on the board!'),
+      };
+    }
+
     default:
       return state;
   }
@@ -874,6 +984,7 @@ export function useGameState() {
   const newGame = useCallback(() => {
     adventurerCounter = 0;
     questCounter = 0;
+    bountyCounter = 0;
     usedNames.clear();
     localStorage.removeItem(SAVE_KEY);
     const freshState = buildFreshState();
@@ -896,6 +1007,14 @@ export function useGameState() {
     dispatch({ type: 'PRESTIGE_ADVENTURER', id });
   }, []);
 
+  const acceptBounty = useCallback((bountyId: string) => {
+    dispatch({ type: 'ACCEPT_BOUNTY', bountyId });
+  }, []);
+
+  const refreshBounties = useCallback(() => {
+    dispatch({ type: 'REFRESH_BOUNTIES' });
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -910,5 +1029,7 @@ export function useGameState() {
     sellMaterials,
     spendUpgradePoint,
     prestigeAdventurer,
+    acceptBounty,
+    refreshBounties,
   };
 }

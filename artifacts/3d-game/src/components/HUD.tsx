@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { Adventurer, Quest, Upgrades } from '../game/types';
+import type { Adventurer, Quest, BountyQuest, Upgrades } from '../game/types';
 import {
   CLASS_COLORS, CLASS_LABELS, CLASS_PASSIVE_LABELS,
   ELITE_LEVEL, MAX_LEVEL, XP_THRESHOLDS,
@@ -14,6 +14,7 @@ interface HUDProps {
   gold: number;
   adventurers: Adventurer[];
   quests: Quest[];
+  bounties: BountyQuest[];
   gameLog: string[];
   gamePhase: 'playing' | 'lost';
   selectedAdventurerId: string | null;
@@ -26,6 +27,8 @@ interface HUDProps {
   onToggleQuestBoard: () => void;
   onDispatchQuest: (questId: string, adventurerIds: string[]) => void;
   onRefreshQuests: () => void;
+  onAcceptBounty: (bountyId: string) => void;
+  onRefreshBounties: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
 }
@@ -863,16 +866,139 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
   );
 }
 
-function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onClose }: {
+function BountyCard({ bounty, activeBountyCount, onAccept }: {
+  bounty: BountyQuest;
+  activeBountyCount: number;
+  onAccept: (id: string) => void;
+}) {
+  const typeColor = QUEST_TYPE_COLORS[bounty.targetMonsterType] ?? '#c8960c';
+  const typeLabel = QUEST_TYPE_LABELS[bounty.targetMonsterType] ?? bounty.targetMonsterType;
+  const progressPct = Math.min(100, (bounty.currentKills / bounty.requiredKills) * 100);
+  const isCompleted = bounty.status === 'completed';
+  const isActive = bounty.status === 'active';
+  const isAvailable = bounty.status === 'available';
+  const canAccept = isAvailable && activeBountyCount < 2;
+
+  return (
+    <div style={{
+      background: isCompleted
+        ? 'rgba(46,204,113,0.06)'
+        : isActive
+        ? 'rgba(200,150,12,0.08)'
+        : 'rgba(0,0,0,0.3)',
+      border: `1px solid ${isCompleted ? '#2ecc7155' : isActive ? '#c8960c66' : '#3d2410'}`,
+      borderRadius: 8,
+      padding: '12px 14px',
+      marginBottom: 10,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>{bounty.name}</span>
+            {isActive && (
+              <span style={{
+                fontSize: 10, fontWeight: 'bold', padding: '1px 6px', borderRadius: 4,
+                background: 'rgba(200,150,12,0.2)', border: '1px solid #c8960c66', color: '#c8960c',
+              }}>ACTIVE</span>
+            )}
+            {isCompleted && (
+              <span style={{
+                fontSize: 10, fontWeight: 'bold', padding: '1px 6px', borderRadius: 4,
+                background: 'rgba(46,204,113,0.2)', border: '1px solid #2ecc7166', color: '#2ecc71',
+              }}>DONE</span>
+            )}
+          </div>
+          <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>{bounty.description}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              fontSize: 10, padding: '1px 7px', borderRadius: 4, fontWeight: 'bold',
+              background: `${typeColor}22`, border: `1px solid ${typeColor}66`, color: typeColor,
+            }}>{typeLabel}</span>
+            <span style={{ color: '#ffd700', fontSize: 12, fontWeight: 'bold' }}>+{bounty.reward}g</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+          <div style={{ color: isCompleted ? '#2ecc71' : isActive ? '#c8960c' : '#888', fontWeight: 'bold', fontSize: 16 }}>
+            {bounty.currentKills}/{bounty.requiredKills}
+          </div>
+          <div style={{ color: '#555', fontSize: 10 }}>kills</div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {(isActive || isCompleted) && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ background: '#1a0a02', borderRadius: 4, height: 6, border: '1px solid #2a1208', overflow: 'hidden' }}>
+            <div style={{
+              background: isCompleted
+                ? 'linear-gradient(90deg, #2ecc71, #27ae60)'
+                : 'linear-gradient(90deg, #c8960c, #e67e22)',
+              width: `${progressPct}%`,
+              height: '100%',
+              borderRadius: 4,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+        </div>
+      )}
+
+      {isAvailable && (
+        <button
+          onClick={() => onAccept(bounty.id)}
+          disabled={!canAccept}
+          style={{
+            background: canAccept
+              ? 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)'
+              : '#1a0d04',
+            border: canAccept ? '1px solid #a0631e' : '1px solid #2a1208',
+            borderRadius: 5,
+            color: canAccept ? '#e8d5a0' : '#3a2a18',
+            fontFamily: 'serif',
+            fontWeight: 'bold',
+            fontSize: 12,
+            padding: '5px 14px',
+            cursor: canAccept ? 'pointer' : 'not-allowed',
+            marginTop: 4,
+          }}
+        >
+          {canAccept ? 'Accept Bounty' : 'Max active bounties (2)'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRefresh, onAcceptBounty, onRefreshBounties, onClose }: {
   quests: Quest[];
+  bounties: BountyQuest[];
   adventurers: Adventurer[];
   gold: number;
   onDispatch: (qid: string, aids: string[]) => void;
   onRefresh: () => void;
+  onAcceptBounty: (bountyId: string) => void;
+  onRefreshBounties: () => void;
   onClose: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<'quests' | 'bounties'>('quests');
   const idleRecruits = adventurers.filter(a => a.status === 'recruited');
   const completedCount = quests.filter(q => q.status === 'completed' || q.status === 'failed').length;
+  const activeBountyCount = bounties.filter(b => b.status === 'active').length;
+  const completedBountyCount = bounties.filter(b => b.status === 'completed').length;
+  const availableBountyCount = bounties.filter(b => b.status === 'available').length;
+
+  const tabStyle = (tab: 'quests' | 'bounties'): React.CSSProperties => ({
+    flex: 1,
+    padding: '8px 0',
+    background: activeTab === tab ? 'rgba(140,80,30,0.3)' : 'transparent',
+    border: 'none',
+    borderBottom: activeTab === tab ? '2px solid #c8960c' : '2px solid #2a1a08',
+    color: activeTab === tab ? '#e8d5a0' : '#7a6a5a',
+    fontFamily: 'serif',
+    fontWeight: 'bold',
+    fontSize: 14,
+    cursor: 'pointer',
+    letterSpacing: 0.3,
+  });
 
   return (
     <div
@@ -896,39 +1022,105 @@ function QuestBoardModal({ quests, adventurers, gold, onDispatch, onRefresh, onC
           fontFamily: 'serif',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ color: '#e8d5a0', margin: 0, fontSize: 22 }}>Quest Board</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>
-        <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
-          Class abilities grant bonus power on matching quest types — shown in <span style={{ color: '#2ecc71' }}>green</span>.
-        </p>
-        {quests.map(quest => (
-          <QuestCard
-            key={quest.id}
-            quest={quest}
-            availableAdventurers={idleRecruits}
-            onDispatch={onDispatch}
-          />
-        ))}
-        {completedCount >= 1 && (
-          <button
-            onClick={onRefresh}
-            style={{
-              marginTop: 8,
-              background: '#3d2410',
-              border: '1px solid #7a4a1e',
-              borderRadius: 6,
-              color: '#e8d5a0',
-              padding: '8px 16px',
-              cursor: 'pointer',
-              width: '100%',
-              fontFamily: 'serif',
-              fontSize: 14,
-            }}
-          >
-            Refresh Quest Board
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', marginBottom: 16, gap: 0 }}>
+          <button style={tabStyle('quests')} onClick={() => setActiveTab('quests')}>
+            Quests {completedCount > 0 && <span style={{ color: '#555', fontSize: 11 }}>({completedCount} done)</span>}
           </button>
+          <button style={tabStyle('bounties')} onClick={() => setActiveTab('bounties')}>
+            Bounties
+            {activeBountyCount > 0 && (
+              <span style={{ color: '#c8960c', fontSize: 11, marginLeft: 4 }}>({activeBountyCount} active)</span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'quests' && (
+          <>
+            <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
+              Class abilities grant bonus power on matching quest types — shown in <span style={{ color: '#2ecc71' }}>green</span>.
+            </p>
+            {quests.map(quest => (
+              <QuestCard
+                key={quest.id}
+                quest={quest}
+                availableAdventurers={idleRecruits}
+                onDispatch={onDispatch}
+              />
+            ))}
+            {completedCount >= 1 && (
+              <button
+                onClick={onRefresh}
+                style={{
+                  marginTop: 8,
+                  background: '#3d2410',
+                  border: '1px solid #7a4a1e',
+                  borderRadius: 6,
+                  color: '#e8d5a0',
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontFamily: 'serif',
+                  fontSize: 14,
+                }}
+              >
+                Refresh Quest Board
+              </button>
+            )}
+          </>
+        )}
+
+        {activeTab === 'bounties' && (
+          <>
+            <p style={{ color: '#888', fontSize: 13, margin: '0 0 4px', lineHeight: 1.5 }}>
+              Accept standing bounties and fill them passively as adventurers complete quests. Up to 2 active at once.
+            </p>
+            <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 16 }}>
+              Active: <span style={{ color: '#c8960c' }}>{activeBountyCount}/2</span>
+              {' · '}
+              Available: <span style={{ color: '#aaa' }}>{availableBountyCount}</span>
+            </div>
+
+            {bounties.length === 0 && (
+              <div style={{ color: '#555', textAlign: 'center', fontStyle: 'italic', padding: '20px 0' }}>
+                No bounties available. Refresh to get new ones.
+              </div>
+            )}
+
+            {bounties.map(bounty => (
+              <BountyCard
+                key={bounty.id}
+                bounty={bounty}
+                activeBountyCount={activeBountyCount}
+                onAccept={onAcceptBounty}
+              />
+            ))}
+
+            {(completedBountyCount > 0 || availableBountyCount > 0) && (
+              <button
+                onClick={onRefreshBounties}
+                style={{
+                  marginTop: 8,
+                  background: '#3d2410',
+                  border: '1px solid #7a4a1e',
+                  borderRadius: 6,
+                  color: '#e8d5a0',
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontFamily: 'serif',
+                  fontSize: 14,
+                }}
+              >
+                Refresh Bounty Board
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1074,10 +1266,11 @@ function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
 }
 
 export function HUD({
-  gold, adventurers, quests, gameLog, gamePhase,
+  gold, adventurers, quests, bounties, gameLog, gamePhase,
   selectedAdventurerId, showQuestBoard, upgrades,
   questsCompleted, tavernPrestige,
-  onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests, onPlaySound,
+  onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests,
+  onAcceptBounty, onRefreshBounties, onPlaySound,
   onNewGame,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
@@ -1224,10 +1417,13 @@ export function HUD({
         <div style={{ pointerEvents: 'auto' }}>
           <QuestBoardModal
             quests={quests}
+            bounties={bounties}
             adventurers={adventurers}
             gold={gold}
             onDispatch={onDispatchQuest}
             onRefresh={onRefreshQuests}
+            onAcceptBounty={onAcceptBounty}
+            onRefreshBounties={onRefreshBounties}
             onClose={onToggleQuestBoard}
           />
         </div>
