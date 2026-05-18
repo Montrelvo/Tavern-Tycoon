@@ -117,4 +117,5 @@ export type GameAction =
   | { type: 'SPEND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' }
   | { type: 'PRESTIGE_ADVENTURER'; id: string }
   | { type: 'ACCEPT_BOUNTY'; bountyId: string }
+  | { type: 'ABANDON_BOUNTY'; bountyId: string }
   | { type: 'REFRESH_BOUNTIES' };

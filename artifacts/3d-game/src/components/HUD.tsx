@@ -128,6 +128,7 @@ interface HUDProps {
   onDispatchQuest: (questId: string, adventurerIds: string[]) => void;
   onRefreshQuests: () => void;
   onAcceptBounty: (bountyId: string) => void;
+  onAbandonBounty: (bountyId: string) => void;
   onRefreshBounties: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
@@ -1004,11 +1005,13 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
   );
 }
 
-function BountyCard({ bounty, activeBountyCount, onAccept }: {
+function BountyCard({ bounty, activeBountyCount, onAccept, onAbandon }: {
   bounty: BountyQuest;
   activeBountyCount: number;
   onAccept: (id: string) => void;
+  onAbandon: (id: string) => void;
 }) {
+  const [confirmingAbandon, setConfirmingAbandon] = useState(false);
   const typeColor = QUEST_TYPE_COLORS[bounty.targetMonsterType] ?? '#c8960c';
   const typeLabel = QUEST_TYPE_LABELS[bounty.targetMonsterType] ?? bounty.targetMonsterType;
   const progressPct = Math.min(100, (bounty.currentKills / bounty.requiredKills) * 100);
@@ -1115,11 +1118,69 @@ function BountyCard({ bounty, activeBountyCount, onAccept }: {
           {canAccept ? 'Accept Bounty' : 'Max active bounties (2)'}
         </button>
       )}
+
+      {isActive && !confirmingAbandon && (
+        <button
+          onClick={() => setConfirmingAbandon(true)}
+          style={{
+            background: 'transparent',
+            border: '1px solid #5a2020',
+            borderRadius: 5,
+            color: '#a05050',
+            fontFamily: 'serif',
+            fontWeight: 'bold',
+            fontSize: 12,
+            padding: '4px 12px',
+            cursor: 'pointer',
+            marginTop: 4,
+          }}
+        >
+          Abandon
+        </button>
+      )}
+
+      {isActive && confirmingAbandon && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ color: '#c88', fontSize: 12, flex: 1 }}>Abandon this bounty? Progress will be lost.</span>
+          <button
+            onClick={() => { onAbandon(bounty.id); setConfirmingAbandon(false); }}
+            style={{
+              background: 'linear-gradient(180deg, #7a2222 0%, #4a1515 100%)',
+              border: '1px solid #9a3333',
+              borderRadius: 5,
+              color: '#f0c0c0',
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              fontSize: 12,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Yes, Abandon
+          </button>
+          <button
+            onClick={() => setConfirmingAbandon(false)}
+            style={{
+              background: '#1a0d04',
+              border: '1px solid #3d2410',
+              borderRadius: 5,
+              color: '#7a6a5a',
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              fontSize: 12,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Keep
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRefresh, onAcceptBounty, onRefreshBounties, onClose }: {
+function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRefresh, onAcceptBounty, onAbandonBounty, onRefreshBounties, onClose }: {
   quests: Quest[];
   bounties: BountyQuest[];
   adventurers: Adventurer[];
@@ -1127,6 +1188,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRe
   onDispatch: (qid: string, aids: string[]) => void;
   onRefresh: () => void;
   onAcceptBounty: (bountyId: string) => void;
+  onAbandonBounty: (bountyId: string) => void;
   onRefreshBounties: () => void;
   onClose: () => void;
 }) {
@@ -1249,6 +1311,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRe
                 bounty={bounty}
                 activeBountyCount={activeBountyCount}
                 onAccept={onAcceptBounty}
+                onAbandon={onAbandonBounty}
               />
             ))}
 
@@ -1434,7 +1497,7 @@ export function HUD({
   selectedAdventurerId, showQuestBoard, upgrades,
   questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests,
-  onAcceptBounty, onRefreshBounties, onPlaySound,
+  onAcceptBounty, onAbandonBounty, onRefreshBounties, onPlaySound,
   onNewGame,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
@@ -1617,6 +1680,7 @@ export function HUD({
             onDispatch={onDispatchQuest}
             onRefresh={onRefreshQuests}
             onAcceptBounty={onAcceptBounty}
+            onAbandonBounty={onAbandonBounty}
             onRefreshBounties={onRefreshBounties}
             onClose={onToggleQuestBoard}
           />

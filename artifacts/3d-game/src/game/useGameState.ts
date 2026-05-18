@@ -856,6 +856,18 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ABANDON_BOUNTY': {
+      if (state.gamePhase !== 'playing') return state;
+      const bounties = state.bounties ?? [];
+      const bounty = bounties.find(b => b.id === action.bountyId);
+      if (!bounty || bounty.status !== 'active') return state;
+      return {
+        ...state,
+        bounties: bounties.filter(b => b.id !== action.bountyId),
+        gameLog: addLog(state.gameLog, `Bounty "${bounty.name}" abandoned. The slot is now free.`),
+      };
+    }
+
     case 'REFRESH_BOUNTIES': {
       if (state.gamePhase !== 'playing') return state;
       const bounties = state.bounties ?? [];
@@ -1049,6 +1061,10 @@ export function useGameState() {
     dispatch({ type: 'ACCEPT_BOUNTY', bountyId });
   }, []);
 
+  const abandonBounty = useCallback((bountyId: string) => {
+    dispatch({ type: 'ABANDON_BOUNTY', bountyId });
+  }, []);
+
   const refreshBounties = useCallback(() => {
     dispatch({ type: 'REFRESH_BOUNTIES' });
   }, []);
@@ -1068,6 +1084,7 @@ export function useGameState() {
     spendUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
+    abandonBounty,
     refreshBounties,
   };
 }

@@ -139,6 +139,7 @@ export default function App() {
     spendUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
+    abandonBounty,
     refreshBounties,
   } = useGameState();
 
@@ -233,6 +234,7 @@ export default function App() {
           onDispatchQuest={dispatchQuest}
           onRefreshQuests={refreshQuests}
           onAcceptBounty={acceptBounty}
+          onAbandonBounty={abandonBounty}
           onRefreshBounties={refreshBounties}
           onPlaySound={playSound}
           onNewGame={newGame}
