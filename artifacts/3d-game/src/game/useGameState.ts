@@ -12,7 +12,10 @@ import {
   TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
   BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS, GEAR_RECIPES,
+  QUEST_TIER_UNLOCK_QUESTS, QUEST_TIER_UNLOCK_PRESTIGE,
+  QUEST_TIER_DROP_CHANCE, QUEST_TIER_DROP_MIN, QUEST_TIER_DROP_MAX,
 } from './constants';
+import type { QuestTier } from './types';
 import { calculateEffectivePower } from './questUtils';
 
 const SAVE_KEY = 'tavern_save_v1';
@@ -141,9 +144,56 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
   };
 }
 
-function generateQuests(): Quest[] {
-  const shuffled = [...QUEST_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3).map(q => ({
+const ALL_TIERS: QuestTier[] = ['common', 'uncommon', 'rare', 'legendary'];
+
+function getUnlockedTiers(questsCompleted: number, tavernPrestige: number): QuestTier[] {
+  return ALL_TIERS.filter(tier =>
+    questsCompleted >= QUEST_TIER_UNLOCK_QUESTS[tier] ||
+    tavernPrestige >= QUEST_TIER_UNLOCK_PRESTIGE[tier]
+  );
+}
+
+const BASE_TIER_WEIGHTS: Record<QuestTier, number> = {
+  common: 1,
+  uncommon: 2,
+  rare: 3,
+  legendary: 4,
+};
+
+function getTierWeights(unlockedTiers: QuestTier[]): Record<QuestTier, number> {
+  const weights = { ...BASE_TIER_WEIGHTS };
+  if (unlockedTiers.length > 1) {
+    const highestUnlocked = unlockedTiers[unlockedTiers.length - 1];
+    weights[highestUnlocked] = (weights[highestUnlocked] ?? 1) + 3;
+  }
+  return weights;
+}
+
+function generateQuests(questsCompleted = 0, tavernPrestige = 0): Quest[] {
+  const unlockedTiers = getUnlockedTiers(questsCompleted, tavernPrestige);
+  const pool = QUEST_POOL.filter(q => unlockedTiers.includes(q.tier));
+  const fallback = QUEST_POOL.filter(q => q.tier === 'common');
+  const source = pool.length >= 3 ? pool : fallback;
+
+  const tierWeights = getTierWeights(unlockedTiers);
+  const weightedPool: typeof QUEST_POOL = [];
+  for (const q of source) {
+    const w = tierWeights[q.tier] ?? 1;
+    for (let i = 0; i < w; i++) weightedPool.push(q);
+  }
+
+  const picked: typeof QUEST_POOL = [];
+  const remaining = [...weightedPool];
+  while (picked.length < 3 && remaining.length > 0) {
+    const idx = Math.floor(Math.random() * remaining.length);
+    const candidate = remaining[idx];
+    remaining.splice(idx, 1);
+    if (!picked.some(p => p.name === candidate.name)) {
+      picked.push(candidate);
+    }
+  }
+
+  return picked.map(q => ({
     ...q,
     id: `quest-${++questCounter}`,
     status: 'available' as const,
@@ -277,9 +327,14 @@ function loadFromStorage(): GameState {
       b => b.status === 'active' || b.status === 'available'
     );
     const mergedBounties = persistedBounties.length > 0 ? persistedBounties : generateBounties();
+    const normalizedQuests: Quest[] = (parsed.quests ?? []).map(q => ({
+      ...q,
+      tier: (q as Quest & { tier?: QuestTier }).tier ?? 'common',
+    }));
     const restored: GameState = {
       ...parsed,
       adventurers: persistedAdventurers,
+      quests: normalizedQuests,
       bounties: mergedBounties,
       selectedAdventurerId: null,
       showQuestBoard: false,
@@ -468,8 +523,12 @@ function reducer(state: GameState, action: GameAction): GameState {
         let finalLog = addLog(state.gameLog, logMsg);
         deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
         let dropNotification: DropNotification | null = null;
-        if (state.upgrades.basement && Math.random() < 0.4) {
-          const dropCount = Math.floor(Math.random() * 2) + 1;
+        const questTier = quest.tier ?? 'common';
+        const tierDropChance = QUEST_TIER_DROP_CHANCE[questTier];
+        const tierDropMin = QUEST_TIER_DROP_MIN[questTier];
+        const tierDropMax = QUEST_TIER_DROP_MAX[questTier];
+        if (state.upgrades.basement && Math.random() < tierDropChance) {
+          const dropCount = tierDropMin + Math.floor(Math.random() * (tierDropMax - tierDropMin + 1));
           const materialKeys: Array<keyof Materials> = [];
           const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
           const questTypePool = MONSTER_PART_DROPS[quest.questType];
@@ -628,7 +687,7 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'REFRESH_QUESTS': {
       const activeQuests = state.quests.filter(q => q.status === 'active');
-      const newQuests = generateQuests().filter(nq =>
+      const newQuests = generateQuests(state.questsCompleted, state.tavernPrestige).filter(nq =>
         !activeQuests.some(aq => aq.name === nq.name)
       ).slice(0, 3 - activeQuests.length);
       return {
