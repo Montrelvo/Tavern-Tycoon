@@ -1337,6 +1337,16 @@ export function HUD({
             <span>Visitors: {wanderers.length}</span>
             <span>Active Quests: {activeQuests.length}</span>
           </div>
+          {(upgrades.rooms ?? 0) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4, fontSize: 11, color: '#666' }}>
+              <span>
+                Rooms: {upgrades.rooms}
+                <span style={{ color: '#2ecc71', marginLeft: 6 }}>
+                  +{(upgrades.rooms ?? 0) * 6} gold/min
+                </span>
+              </span>
+            </div>
+          )}
           <button
             onClick={onNewGame}
             title="Wipe save and start a new game"
