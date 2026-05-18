@@ -177,11 +177,18 @@ const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0, bones: 0, pe
 const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12, bones: 8, pelts: 8, venom: 8 };
 const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic', bones: 'Bone', pelts: 'Pelt', venom: 'Venom' };
 
-const MONSTER_PART_DROPS: Record<string, Array<keyof Materials>> = {
+const MONSTER_PART_DROPS: Record<QuestType, Array<keyof Materials>> = {
   beast:   ['pelts', 'pelts', 'bones', 'pelts', 'bones'],
   combat:  ['bones', 'bones', 'pelts', 'venom', 'bones'],
   arcane:  ['venom', 'venom', 'bones', 'venom', 'relics'],
   stealth: ['pelts', 'venom', 'venom', 'bones', 'pelts'],
+};
+
+const CLASS_PART_DROPS: Record<AdventurerClass, Array<keyof Materials>> = {
+  warrior:  ['bones', 'bones', 'pelts', 'ore'],
+  mage:     ['venom', 'venom', 'relics', 'venom'],
+  rogue:    ['pelts', 'pelts', 'venom', 'pelts'],
+  healer:   ['herbs', 'herbs', 'bones', 'relics'],
 };
 const ROOM_INCOME_INTERVAL = 10_000;
 
@@ -465,7 +472,10 @@ function reducer(state: GameState, action: GameAction): GameState {
           const dropCount = Math.floor(Math.random() * 2) + 1;
           const materialKeys: Array<keyof Materials> = [];
           const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
-          const monsterPool = MONSTER_PART_DROPS[quest.questType] ?? ['bones', 'pelts', 'venom'];
+          const questTypePool = MONSTER_PART_DROPS[quest.questType];
+          const assignedAdventurers = state.adventurers.filter(a => quest.assignedAdventurerIds.includes(a.id));
+          const classPool: Array<keyof Materials> = assignedAdventurers.flatMap(a => CLASS_PART_DROPS[a.class]);
+          const monsterPool = [...questTypePool, ...classPool];
           for (let i = 0; i < dropCount; i++) {
             const useMonsterPart = Math.random() < 0.6;
             const pool = useMonsterPart ? monsterPool : craftingPool;
