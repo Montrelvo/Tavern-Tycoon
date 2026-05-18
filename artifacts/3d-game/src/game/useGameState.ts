@@ -14,6 +14,7 @@ import {
   BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS, GEAR_RECIPES,
   QUEST_TIER_UNLOCK_QUESTS, QUEST_TIER_UNLOCK_PRESTIGE,
   QUEST_TIER_DROP_CHANCE, QUEST_TIER_DROP_MIN, QUEST_TIER_DROP_MAX,
+  QUEST_TIER_RELIC_WEIGHT, QUEST_TIER_BONUS_DROPS,
 } from './constants';
 import type { QuestTier } from './types';
 import { calculateEffectivePower } from './questUtils';
@@ -530,7 +531,11 @@ function reducer(state: GameState, action: GameAction): GameState {
         if (state.upgrades.basement && Math.random() < tierDropChance) {
           const dropCount = tierDropMin + Math.floor(Math.random() * (tierDropMax - tierDropMin + 1));
           const materialKeys: Array<keyof Materials> = [];
-          const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
+          const relicWeight = QUEST_TIER_RELIC_WEIGHT[questTier];
+          const craftingPool: Array<keyof Materials> = [
+            'herbs', 'ore', 'relics',
+            ...Array(relicWeight).fill('relics' as keyof Materials),
+          ];
           const questTypePool = MONSTER_PART_DROPS[quest.questType];
           const assignedAdventurers = state.adventurers.filter(a => quest.assignedAdventurerIds.includes(a.id));
           const classPool: Array<keyof Materials> = assignedAdventurers.flatMap(a => CLASS_PART_DROPS[a.class]);
@@ -539,6 +544,13 @@ function reducer(state: GameState, action: GameAction): GameState {
             const useMonsterPart = Math.random() < 0.6;
             const pool = useMonsterPart ? monsterPool : craftingPool;
             const mat = pool[Math.floor(Math.random() * pool.length)];
+            newMaterials[mat] += 1;
+            materialKeys.push(mat);
+          }
+          const bonusDrops = QUEST_TIER_BONUS_DROPS[questTier];
+          const bonusPool: Array<keyof Materials> = ['relics', 'venom', 'bones'];
+          for (let i = 0; i < bonusDrops; i++) {
+            const mat = bonusPool[Math.floor(Math.random() * bonusPool.length)];
             newMaterials[mat] += 1;
             materialKeys.push(mat);
           }

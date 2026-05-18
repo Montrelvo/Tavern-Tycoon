@@ -105,6 +105,20 @@ export const QUEST_TIER_DROP_MAX: Record<QuestTier, number> = {
   legendary: 5,
 };
 
+export const QUEST_TIER_RELIC_WEIGHT: Record<QuestTier, number> = {
+  common:    0,
+  uncommon:  1,
+  rare:      3,
+  legendary: 5,
+};
+
+export const QUEST_TIER_BONUS_DROPS: Record<QuestTier, number> = {
+  common:    0,
+  uncommon:  0,
+  rare:      1,
+  legendary: 2,
+};
+
 export const QUEST_POOL: Array<{
   name: string; description: string; reward: number;
   powerRequired: number; duration: number; questType: QuestType; tier: QuestTier;
