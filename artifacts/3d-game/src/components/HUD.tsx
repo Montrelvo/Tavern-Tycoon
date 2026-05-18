@@ -1014,7 +1014,9 @@ function BountyCard({ bounty, activeBountyCount, onAccept }: {
               fontSize: 10, padding: '1px 7px', borderRadius: 4, fontWeight: 'bold',
               background: `${typeColor}22`, border: `1px solid ${typeColor}66`, color: typeColor,
             }}>{typeLabel}</span>
-            <span style={{ color: '#ffd700', fontSize: 12, fontWeight: 'bold' }}>+{bounty.reward}g</span>
+            {bounty.reward > 0 && (
+              <span style={{ color: '#ffd700', fontSize: 12, fontWeight: 'bold' }}>+{bounty.reward}g</span>
+            )}
             {bounty.materialReward && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 3,
