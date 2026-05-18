@@ -183,6 +183,7 @@ export default function App() {
     abandonBounty,
     craftGear,
     manualSave,
+    lastAutoSavedAt,
   } = useGameState();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,6 +308,7 @@ export default function App() {
             onPlaySound={playSound}
             onNewGame={newGame}
             onSave={manualSave}
+            lastAutoSavedAt={lastAutoSavedAt}
           />
         )}
 

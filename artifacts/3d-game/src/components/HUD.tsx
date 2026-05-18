@@ -134,6 +134,18 @@ interface HUDProps {
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
   onSave: () => number | null;
+  lastAutoSavedAt: number | null;
+}
+
+function formatRelativeTime(ts: number, now: number): string {
+  const diffMs = now - ts;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 10) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr}h ago`;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -1572,7 +1584,7 @@ export function HUD({
   questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRejectQuest,
   onAcceptBounty, onAbandonBounty, onRejectBounty, onPlaySound,
-  onNewGame, onSave,
+  onNewGame, onSave, lastAutoSavedAt,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
@@ -1587,10 +1599,15 @@ export function HUD({
   const shownNotificationIdRef = useRef<number | null>(null);
   const idleRecruits = adventurers.filter(a => a.status === 'recruited');
   const [partyCap, setPartyCap] = useState<number>(1);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [saveFlash, setSaveFlash] = useState(false);
   const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1599,9 +1616,8 @@ export function HUD({
   }, []);
 
   const handleSave = () => {
-    const ts = onSave();
-    if (ts === null) return;
-    setSavedAt(ts);
+    const ok = onSave();
+    if (ok === null) return;
     setSaveFlash(true);
     if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current);
     saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 1800);
@@ -1761,19 +1777,19 @@ export function HUD({
         zIndex: 110,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Last saved timestamp */}
-          {savedAt && !saveFlash && (
+          {/* Auto-save indicator */}
+          {lastAutoSavedAt && !saveFlash && (
             <span style={{
-              color: '#4a3a28',
+              color: '#4a7a55',
               fontFamily: 'serif',
               fontSize: 9,
               fontStyle: 'italic',
               letterSpacing: 0.2,
             }}>
-              Saved {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              Auto-saved {formatRelativeTime(lastAutoSavedAt, now)}
             </span>
           )}
-          {/* "Saved!" flash */}
+          {/* "Saved!" flash (manual save only) */}
           {saveFlash && (
             <span style={{
               color: '#2ecc71',

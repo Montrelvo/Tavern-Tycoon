@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback, useRef } from 'react';
+import { useReducer, useEffect, useCallback, useRef, useState } from 'react';
 import type { GameState, GameAction, Adventurer, Quest, Materials, BountyQuest, DropNotification } from './types';
 import type { AdventurerClass, QuestType } from './types';
 import {
@@ -1098,8 +1098,17 @@ export function useGameState() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<number | null>(null);
+  const isFirstAutoSave = useRef(true);
+
   useEffect(() => {
-    saveToStorage(state);
+    if (isFirstAutoSave.current) {
+      isFirstAutoSave.current = false;
+      saveToStorage(state);
+      return;
+    }
+    const ok = saveToStorage(state);
+    if (ok) setLastAutoSavedAt(Date.now());
   }, [state]);
 
   // Spawn adventurers
@@ -1303,5 +1312,6 @@ export function useGameState() {
     abandonBounty,
     craftGear,
     manualSave,
+    lastAutoSavedAt,
   };
 }
