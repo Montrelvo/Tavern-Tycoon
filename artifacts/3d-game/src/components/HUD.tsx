@@ -1349,7 +1349,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, partyCap, onSetP
         {/* Tabs */}
         <div style={{ display: 'flex', marginBottom: 16, gap: 0 }}>
           <button style={tabStyle('quests')} onClick={() => setActiveTab('quests')}>
-            Quests {completedCount > 0 && <span style={{ color: '#555', fontSize: 11 }}>({completedCount} done)</span>}
+            Quests
           </button>
           <button style={tabStyle('bounties')} onClick={() => setActiveTab('bounties')}>
             Bounties
