@@ -164,10 +164,14 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
   const roomIncomePm = rooms * 3 * 2;
-  const sellRates = upgrades.enchanter ? { herbs: 6, ore: 12, relics: 24 } : { herbs: 3, ore: 6, relics: 12 };
+  const sellRates = upgrades.enchanter
+    ? { herbs: 6, ore: 12, relics: 24, bones: 16, pelts: 16, venom: 16 }
+    : { herbs: 3, ore: 6, relics: 12, bones: 8, pelts: 8, venom: 8 };
   const totalMaterialValue =
-    materials.herbs * sellRates.herbs + materials.ore * sellRates.ore + materials.relics * sellRates.relics;
-  const hasMaterials = materials.herbs > 0 || materials.ore > 0 || materials.relics > 0;
+    materials.herbs * sellRates.herbs + materials.ore * sellRates.ore + materials.relics * sellRates.relics +
+    materials.bones * sellRates.bones + materials.pelts * sellRates.pelts + materials.venom * sellRates.venom;
+  const hasMaterials = materials.herbs > 0 || materials.ore > 0 || materials.relics > 0 ||
+    materials.bones > 0 || materials.pelts > 0 || materials.venom > 0;
   const prestige1Unlocked = tavernPrestige >= 1;
   const prestige2Unlocked = tavernPrestige >= 2;
   const prestige3Unlocked = tavernPrestige >= 3;
@@ -359,8 +363,12 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
             <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
               Excavate a basement to store materials brought back from quests —{' '}
               <span style={{ color: '#c8960c' }}>Herbs (3g)</span>,{' '}
-              <span style={{ color: '#aaa' }}>Ore (6g)</span>, and{' '}
-              <span style={{ color: '#9b59b6' }}>Relics (12g)</span> — that can be sold for gold.
+              <span style={{ color: '#aaa' }}>Ore (6g)</span>,{' '}
+              <span style={{ color: '#9b59b6' }}>Relics (12g)</span>, and monster parts —{' '}
+              <span style={{ color: '#c8b89a' }}>Bones</span>,{' '}
+              <span style={{ color: '#a0724a' }}>Pelts</span>,{' '}
+              <span style={{ color: '#2ecc71' }}>Venom</span>{' '}
+              (8g each) — that can be sold for gold.
               Adventurers have a ~40% chance to bring back materials on successful quests.
             </div>
             <BuyButton
@@ -388,8 +396,11 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
               )}
             </div>
 
-            {/* Material inventory */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            {/* Material inventory — crafting supplies */}
+            <div style={{ color: '#4a3a28', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Crafting Supplies
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               {[
                 { key: 'herbs' as const, label: 'Herbs', icon: '🌿', color: '#c8960c', rate: sellRates.herbs },
                 { key: 'ore' as const, label: 'Ore', icon: '⚙', color: '#aaa', rate: sellRates.ore },
@@ -400,12 +411,38 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                   background: materials[key] > 0 ? `rgba(${hexToRgbStr(color)},0.08)` : 'rgba(0,0,0,0.25)',
                   border: `1px solid ${materials[key] > 0 ? color + '55' : '#2a1a08'}`,
                   borderRadius: 8,
-                  padding: '10px 12px',
+                  padding: '8px 10px',
                   textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
-                  <div style={{ color, fontWeight: 'bold', fontSize: 20 }}>{materials[key]}</div>
-                  <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 18, marginBottom: 3 }}>{icon}</div>
+                  <div style={{ color, fontWeight: 'bold', fontSize: 18 }}>{materials[key]}</div>
+                  <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 1 }}>{label}</div>
+                  <div style={{ color: '#4a3a28', fontSize: 10 }}>{rate}g each</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Material inventory — monster parts */}
+            <div style={{ color: '#4a3a28', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+              Monster Parts
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {[
+                { key: 'bones' as const, label: 'Bones', icon: '🦴', color: '#c8b89a', rate: sellRates.bones },
+                { key: 'pelts' as const, label: 'Pelts', icon: '🐾', color: '#a0724a', rate: sellRates.pelts },
+                { key: 'venom' as const, label: 'Venom', icon: '🧪', color: '#2ecc71', rate: sellRates.venom },
+              ].map(({ key, label, icon, color, rate }) => (
+                <div key={key} style={{
+                  flex: 1,
+                  background: materials[key] > 0 ? `rgba(${hexToRgbStr(color)},0.08)` : 'rgba(0,0,0,0.25)',
+                  border: `1px solid ${materials[key] > 0 ? color + '55' : '#2a1a08'}`,
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 3 }}>{icon}</div>
+                  <div style={{ color, fontWeight: 'bold', fontSize: 18 }}>{materials[key]}</div>
+                  <div style={{ color: '#7a6a5a', fontSize: 11, marginBottom: 1 }}>{label}</div>
                   <div style={{ color: '#4a3a28', fontSize: 10 }}>{rate}g each</div>
                 </div>
               ))}
@@ -483,7 +520,10 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
             An enchanter doubles the sell value of all materials:{' '}
             <span style={{ color: '#c8960c' }}>Herbs → 6g</span>,{' '}
             <span style={{ color: '#aaa' }}>Ore → 12g</span>,{' '}
-            <span style={{ color: '#9b59b6' }}>Relics → 24g</span>.
+            <span style={{ color: '#9b59b6' }}>Relics → 24g</span>,{' '}
+            <span style={{ color: '#c8b89a' }}>Bones → 16g</span>,{' '}
+            <span style={{ color: '#a0724a' }}>Pelts → 16g</span>,{' '}
+            <span style={{ color: '#2ecc71' }}>Venom → 16g</span>.
           </div>
           {upgrades.enchanter ? (
             <PurchasedBadge label="Enchanter in residence" />

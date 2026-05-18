@@ -57,6 +57,9 @@ export interface Materials {
   herbs: number;
   ore: number;
   relics: number;
+  bones: number;
+  pelts: number;
+  venom: number;
 }
 
 export interface GameState {

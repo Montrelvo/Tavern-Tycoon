@@ -132,10 +132,16 @@ const DEFAULT_UPGRADES = {
   enchanter: false,
   guildHall: false,
 };
-const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0 };
-const MATERIAL_TYPES: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
-const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12 };
-const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic' };
+const DEFAULT_MATERIALS: Materials = { herbs: 0, ore: 0, relics: 0, bones: 0, pelts: 0, venom: 0 };
+const MATERIAL_SELL_RATES: Record<keyof Materials, number> = { herbs: 3, ore: 6, relics: 12, bones: 8, pelts: 8, venom: 8 };
+const MATERIAL_LABELS: Record<keyof Materials, string> = { herbs: 'Herb', ore: 'Ore', relics: 'Relic', bones: 'Bone', pelts: 'Pelt', venom: 'Venom' };
+
+const MONSTER_PART_DROPS: Record<string, Array<keyof Materials>> = {
+  beast:   ['pelts', 'pelts', 'bones', 'pelts', 'bones'],
+  combat:  ['bones', 'bones', 'pelts', 'venom', 'bones'],
+  arcane:  ['venom', 'venom', 'bones', 'venom', 'relics'],
+  stealth: ['pelts', 'venom', 'venom', 'bones', 'pelts'],
+};
 const ROOM_INCOME_INTERVAL = 10_000;
 
 function getRosterMax(upgrades: { rosterSlots?: 1 | 2 | 3 }): number {
@@ -403,8 +409,12 @@ function reducer(state: GameState, action: GameAction): GameState {
         if (state.upgrades.basement && Math.random() < 0.4) {
           const dropCount = Math.floor(Math.random() * 2) + 1;
           const materialDrops: string[] = [];
+          const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
+          const monsterPool = MONSTER_PART_DROPS[quest.questType] ?? ['bones', 'pelts', 'venom'];
           for (let i = 0; i < dropCount; i++) {
-            const mat = MATERIAL_TYPES[Math.floor(Math.random() * MATERIAL_TYPES.length)];
+            const useMonsterPart = Math.random() < 0.6;
+            const pool = useMonsterPart ? monsterPool : craftingPool;
+            const mat = pool[Math.floor(Math.random() * pool.length)];
             newMaterials[mat] += 1;
             materialDrops.push(MATERIAL_LABELS[mat]);
           }
@@ -659,20 +669,25 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'SELL_MATERIALS': {
       if (state.gamePhase !== 'playing') return state;
-      const { herbs, ore, relics } = state.materials;
+      const { herbs, ore, relics, bones, pelts, venom } = state.materials;
       const sellRates = state.upgrades.enchanter
-        ? { herbs: 6, ore: 12, relics: 24 }
+        ? { herbs: 6, ore: 12, relics: 24, bones: 16, pelts: 16, venom: 16 }
         : MATERIAL_SELL_RATES;
-      const total = herbs * sellRates.herbs + ore * sellRates.ore + relics * sellRates.relics;
+      const total =
+        herbs * sellRates.herbs + ore * sellRates.ore + relics * sellRates.relics +
+        bones * sellRates.bones + pelts * sellRates.pelts + venom * sellRates.venom;
       if (total === 0) return state;
       const parts: string[] = [];
       if (herbs > 0) parts.push(`${herbs} Herb${herbs > 1 ? 's' : ''}`);
       if (ore > 0) parts.push(`${ore} Ore`);
       if (relics > 0) parts.push(`${relics} Relic${relics > 1 ? 's' : ''}`);
+      if (bones > 0) parts.push(`${bones} Bone${bones > 1 ? 's' : ''}`);
+      if (pelts > 0) parts.push(`${pelts} Pelt${pelts > 1 ? 's' : ''}`);
+      if (venom > 0) parts.push(`${venom} Venom`);
       return {
         ...state,
         gold: state.gold + total,
-        materials: { herbs: 0, ore: 0, relics: 0 },
+        materials: { herbs: 0, ore: 0, relics: 0, bones: 0, pelts: 0, venom: 0 },
         gameLog: addLog(state.gameLog, `Sold ${parts.join(', ')} for ${total} gold!`),
       };
     }
