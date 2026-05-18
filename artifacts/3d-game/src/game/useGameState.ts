@@ -897,13 +897,13 @@ function reducer(state: GameState, action: GameAction): GameState {
       if (!recipe) return state;
       if (state.materials.herbs < recipe.cost.herbs || state.materials.ore < recipe.cost.ore) return state;
 
-      const recruited = state.adventurers.filter(
-        a => a.status === 'recruited' || a.status === 'on-quest'
+      const target = state.adventurers.find(
+        a => a.id === action.adventurerId && (a.status === 'recruited' || a.status === 'on-quest')
       );
-      if (recruited.length === 0) return state;
+      if (!target) return state;
 
       const updatedAdventurers = state.adventurers.map(a => {
-        if (a.status !== 'recruited' && a.status !== 'on-quest') return a;
+        if (a.id !== action.adventurerId) return a;
         let updated = { ...a };
         for (const effect of recipe.effects) {
           if (effect.stat === 'attack') updated = { ...updated, attack: updated.attack + effect.amount };
@@ -928,7 +928,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           ore: state.materials.ore - recipe.cost.ore,
         },
         adventurers: updatedAdventurers,
-        gameLog: addLog(state.gameLog, `Crafted ${recipe.name}! All adventurers gained ${effectLabels}.`),
+        gameLog: addLog(state.gameLog, `Crafted ${recipe.name} for ${target.name}! They gained ${effectLabels}.`),
       };
     }
 
@@ -1119,8 +1119,8 @@ export function useGameState() {
     dispatch({ type: 'REFRESH_BOUNTIES' });
   }, []);
 
-  const craftGear = useCallback((recipeId: string) => {
-    dispatch({ type: 'CRAFT_GEAR', recipeId });
+  const craftGear = useCallback((recipeId: string, adventurerId: string) => {
+    dispatch({ type: 'CRAFT_GEAR', recipeId, adventurerId });
   }, []);
 
   return {

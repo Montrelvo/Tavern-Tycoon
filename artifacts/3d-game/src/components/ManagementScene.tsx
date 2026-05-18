@@ -1,5 +1,5 @@
-import React from 'react';
-import type { Upgrades, Materials } from '../game/types';
+import React, { useState } from 'react';
+import type { Upgrades, Materials, Adventurer } from '../game/types';
 import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST, GEAR_RECIPES } from '../game/constants';
 
 interface ManagementSceneProps {
@@ -10,8 +10,9 @@ interface ManagementSceneProps {
   tavernPrestige: 0 | 1 | 2 | 3;
   onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
   onSellMaterials: () => void;
-  onCraftGear: (recipeId: string) => void;
+  onCraftGear: (recipeId: string, adventurerId: string) => void;
   recruitedCount: number;
+  recruitedAdventurers: Adventurer[];
 }
 
 const cardStyle: React.CSSProperties = {
@@ -161,7 +162,8 @@ function RoomSlot({ n, active }: { n: number; active: boolean }) {
   );
 }
 
-export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials, onCraftGear, recruitedCount }: ManagementSceneProps) {
+export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials, onCraftGear, recruitedCount, recruitedAdventurers }: ManagementSceneProps) {
+  const [pendingRecipeId, setPendingRecipeId] = useState<string | null>(null);
   const rosterMax = ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
@@ -179,6 +181,123 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
   const prestige3Unlocked = tavernPrestige >= 3;
 
   return (
+    <>
+    {/* Adventurer picker modal */}
+    {pendingRecipeId && (() => {
+      const recipe = GEAR_RECIPES.find(r => r.id === pendingRecipeId)!;
+      return (
+        <div
+          onClick={() => setPendingRecipeId(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'rgba(15,8,2,0.98)',
+              border: '1px solid #5c3315',
+              borderRadius: 12,
+              padding: '24px 28px',
+              minWidth: 320,
+              maxWidth: 440,
+              fontFamily: 'serif',
+            }}
+          >
+            <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 17, marginBottom: 4 }}>
+              {recipe.icon} Equip {recipe.name}
+            </div>
+            <div style={{ color: '#7a6a5a', fontSize: 12, marginBottom: 18 }}>
+              Choose which adventurer receives this gear
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recruitedAdventurers.map(adv => {
+                const classColors: Record<string, string> = {
+                  warrior: '#e67e22', mage: '#9b59b6', rogue: '#27ae60', healer: '#3498db',
+                };
+                const classIcons: Record<string, string> = {
+                  warrior: '⚔', mage: '🔮', rogue: '🗡', healer: '💚',
+                };
+                const color = classColors[adv.class] ?? '#c8960c';
+                const icon = classIcons[adv.class] ?? '👤';
+                const isOnQuest = adv.status === 'on-quest';
+                return (
+                  <button
+                    key={adv.id}
+                    onClick={() => {
+                      onCraftGear(pendingRecipeId, adv.id);
+                      setPendingRecipeId(null);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      background: `rgba(${color === '#e67e22' ? '230,126,34' : color === '#9b59b6' ? '155,89,182' : color === '#27ae60' ? '39,174,96' : '52,152,219'},0.10)`,
+                      border: `1px solid ${color}55`,
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      cursor: 'pointer',
+                      fontFamily: 'serif',
+                      textAlign: 'left',
+                      width: '100%',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = `rgba(200,150,12,0.15)`)}
+                    onMouseLeave={e => (e.currentTarget.style.background = `rgba(${color === '#e67e22' ? '230,126,34' : color === '#9b59b6' ? '155,89,182' : color === '#27ae60' ? '39,174,96' : '52,152,219'},0.10)`)}
+                  >
+                    <span style={{ fontSize: 20 }}>{icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>
+                        {adv.name}
+                        {isOnQuest && (
+                          <span style={{ color: '#7a6a5a', fontWeight: 'normal', fontSize: 11, marginLeft: 8 }}>
+                            (on quest)
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color, fontSize: 11, marginTop: 1 }}>
+                        Lv.{adv.level} {adv.class.charAt(0).toUpperCase() + adv.class.slice(1)}
+                        <span style={{ color: '#7a6a5a', marginLeft: 8 }}>
+                          ⚔ {adv.attack} · 🛡 {adv.defense} · ❤ {adv.maxHp}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{ color: '#c8960c', fontSize: 12, fontWeight: 'bold', flexShrink: 0 }}>
+                      Equip →
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setPendingRecipeId(null)}
+              style={{
+                marginTop: 16,
+                width: '100%',
+                background: 'transparent',
+                border: '1px solid #3a2a18',
+                borderRadius: 6,
+                color: '#5a4a38',
+                fontFamily: 'serif',
+                fontSize: 13,
+                padding: '7px',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    })()}
     <div style={{
       position: 'fixed',
       inset: 0,
@@ -488,7 +607,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                 <div>
                   <div style={sectionTitle}>Smithy &amp; Alchemist</div>
                   <div style={sectionSubtitle}>
-                    Craft gear from herbs and ore — bonuses apply to all recruited adventurers
+                    Craft gear from herbs and ore — equip to a chosen adventurer
                   </div>
                 </div>
               </div>
@@ -578,7 +697,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                             );
                           })}
                           <span style={{ color: '#4a3a28', fontSize: 11, alignSelf: 'center' }}>
-                            · all adventurers
+                            · chosen adventurer
                           </span>
                         </div>
 
@@ -622,9 +741,9 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                         </div>
                       </div>
 
-                      {/* Craft button */}
+                      {/* Equip to button */}
                       <button
-                        onClick={() => onCraftGear(recipe.id)}
+                        onClick={() => canCraft && setPendingRecipeId(recipe.id)}
                         disabled={!canCraft}
                         style={{
                           flexShrink: 0,
@@ -643,7 +762,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                           alignSelf: 'center',
                         }}
                       >
-                        Craft
+                        Equip to…
                       </button>
                     </div>
                   );
@@ -780,6 +899,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
         </div>
       </div>
     </div>
+    </>
   );
 }
 

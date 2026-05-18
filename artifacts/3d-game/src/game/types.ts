@@ -119,4 +119,4 @@ export type GameAction =
   | { type: 'ACCEPT_BOUNTY'; bountyId: string }
   | { type: 'ABANDON_BOUNTY'; bountyId: string }
   | { type: 'REFRESH_BOUNTIES' }
-  | { type: 'CRAFT_GEAR'; recipeId: string };
+  | { type: 'CRAFT_GEAR'; recipeId: string; adventurerId: string };

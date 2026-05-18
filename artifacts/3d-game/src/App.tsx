@@ -254,6 +254,7 @@ export default function App() {
           onSellMaterials={sellMaterials}
           onCraftGear={craftGear}
           recruitedCount={recruited.length}
+          recruitedAdventurers={recruited}
         />
       )}
 
