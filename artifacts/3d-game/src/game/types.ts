@@ -71,6 +71,7 @@ export interface BountyQuest {
   requiredKills: number;
   currentKills: number;
   reward: number;
+  materialReward?: { type: keyof Materials; amount: number };
   status: BountyStatus;
 }
 

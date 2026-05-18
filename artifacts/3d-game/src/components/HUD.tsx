@@ -1009,12 +1009,23 @@ function BountyCard({ bounty, activeBountyCount, onAccept }: {
             )}
           </div>
           <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>{bounty.description}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{
               fontSize: 10, padding: '1px 7px', borderRadius: 4, fontWeight: 'bold',
               background: `${typeColor}22`, border: `1px solid ${typeColor}66`, color: typeColor,
             }}>{typeLabel}</span>
             <span style={{ color: '#ffd700', fontSize: 12, fontWeight: 'bold' }}>+{bounty.reward}g</span>
+            {bounty.materialReward && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                fontSize: 11, fontWeight: 'bold', color: '#c8aa80',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid #3d2410',
+                borderRadius: 4, padding: '1px 6px',
+              }}>
+                {MATERIAL_ICONS[bounty.materialReward.type]}
+                {bounty.materialReward.amount} {MATERIAL_LABELS_HUD[bounty.materialReward.type]}{bounty.materialReward.amount !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
