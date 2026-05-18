@@ -872,13 +872,21 @@ function reducer(state: GameState, action: GameAction): GameState {
       if (state.gamePhase !== 'playing') return state;
       const bounties = state.bounties ?? [];
       const activeBounties = bounties.filter(b => b.status === 'active');
-      const newBounties = generateBounties().filter(nb =>
-        !activeBounties.some(ab => ab.name === nb.name)
-      ).slice(0, 3 - activeBounties.length);
+      const partialBounties = bounties.filter(b => b.status === 'available' && b.currentKills > 0);
+      const keptBounties = [...activeBounties, ...partialBounties];
+      const slotsToFill = 3 - keptBounties.length;
+      const newBounties = slotsToFill > 0
+        ? generateBounties().filter(nb =>
+            !keptBounties.some(kb => kb.name === nb.name)
+          ).slice(0, slotsToFill)
+        : [];
+      const logMsg = partialBounties.length > 0
+        ? `New bounties posted! ${partialBounties.length} ${partialBounties.length > 1 ? 'bounties' : 'bounty'} with partial progress ${partialBounties.length > 1 ? 'were' : 'was'} kept.`
+        : 'New bounties posted on the board!';
       return {
         ...state,
-        bounties: [...activeBounties, ...newBounties],
-        gameLog: addLog(state.gameLog, 'New bounties posted on the board!'),
+        bounties: [...keptBounties, ...newBounties],
+        gameLog: addLog(state.gameLog, logMsg),
       };
     }
 
