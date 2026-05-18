@@ -138,6 +138,8 @@ export default function App() {
     sellMaterials,
     spendUpgradePoint,
     prestigeAdventurer,
+    acceptBounty,
+    refreshBounties,
   } = useGameState();
 
   const { startAmbience, playSound } = useTavernAmbience();
@@ -216,6 +218,7 @@ export default function App() {
           gold={state.gold}
           adventurers={state.adventurers}
           quests={state.quests}
+          bounties={state.bounties ?? []}
           gameLog={state.gameLog}
           gamePhase={state.gamePhase}
           selectedAdventurerId={state.selectedAdventurerId}
@@ -223,11 +226,14 @@ export default function App() {
           upgrades={state.upgrades}
           questsCompleted={state.questsCompleted}
           tavernPrestige={state.tavernPrestige}
+          lastDropNotification={state.lastDropNotification ?? null}
           onRecruit={recruitAdventurer}
           onSelectAdventurer={selectAdventurer}
           onToggleQuestBoard={toggleQuestBoard}
           onDispatchQuest={dispatchQuest}
           onRefreshQuests={refreshQuests}
+          onAcceptBounty={acceptBounty}
+          onRefreshBounties={refreshBounties}
           onPlaySound={playSound}
           onNewGame={newGame}
         />

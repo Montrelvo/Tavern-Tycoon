@@ -2,6 +2,7 @@ export type AdventurerClass = 'warrior' | 'mage' | 'rogue' | 'healer';
 export type PrestigeClass = 'knight' | 'archmage' | 'shadowblade' | 'warden';
 export type AdventurerStatus = 'entering' | 'idle' | 'recruited' | 'on-quest';
 export type QuestType = 'beast' | 'arcane' | 'stealth' | 'combat';
+export type BountyStatus = 'available' | 'active' | 'completed';
 
 export type BaseStat = 'str' | 'dex' | 'con' | 'int' | 'wis';
 
@@ -62,10 +63,29 @@ export interface Materials {
   venom: number;
 }
 
+export interface BountyQuest {
+  id: string;
+  name: string;
+  description: string;
+  targetMonsterType: QuestType;
+  requiredKills: number;
+  currentKills: number;
+  reward: number;
+  materialReward?: { type: keyof Materials; amount: number };
+  status: BountyStatus;
+}
+
+export interface DropNotification {
+  id: number;
+  questName: string;
+  drops: Array<{ material: keyof Materials; qty: number }>;
+}
+
 export interface GameState {
   gold: number;
   adventurers: Adventurer[];
   quests: Quest[];
+  bounties: BountyQuest[];
   gameLog: string[];
   gamePhase: 'playing' | 'lost';
   selectedAdventurerId: string | null;
@@ -74,6 +94,7 @@ export interface GameState {
   materials: Materials;
   questsCompleted: number;
   tavernPrestige: 0 | 1 | 2 | 3;
+  lastDropNotification: DropNotification | null;
 }
 
 export type GameAction =
@@ -94,4 +115,6 @@ export type GameAction =
   | { type: 'SELL_MATERIALS' }
   | { type: 'ROOM_INCOME' }
   | { type: 'SPEND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' }
-  | { type: 'PRESTIGE_ADVENTURER'; id: string };
+  | { type: 'PRESTIGE_ADVENTURER'; id: string }
+  | { type: 'ACCEPT_BOUNTY'; bountyId: string }
+  | { type: 'REFRESH_BOUNTIES' };
