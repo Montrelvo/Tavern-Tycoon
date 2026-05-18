@@ -1,6 +1,6 @@
-import React from 'react';
-import type { Upgrades, Materials } from '../game/types';
-import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST } from '../game/constants';
+import React, { useState } from 'react';
+import type { Upgrades, Materials, Adventurer } from '../game/types';
+import { ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST, GEAR_RECIPES } from '../game/constants';
 
 interface ManagementSceneProps {
   gold: number;
@@ -10,6 +10,9 @@ interface ManagementSceneProps {
   tavernPrestige: 0 | 1 | 2 | 3;
   onHireUpgrade: (upgrade: 'cook' | 'cook_plus' | 'bard' | 'roster_expand' | 'rooms' | 'rooms_expansion' | 'basement' | 'training_grounds' | 'enchanter' | 'guild_hall') => void;
   onSellMaterials: () => void;
+  onCraftGear: (recipeId: string, adventurerId: string) => void;
+  recruitedCount: number;
+  recruitedAdventurers: Adventurer[];
 }
 
 const cardStyle: React.CSSProperties = {
@@ -159,7 +162,8 @@ function RoomSlot({ n, active }: { n: number; active: boolean }) {
   );
 }
 
-export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials }: ManagementSceneProps) {
+export function ManagementScene({ gold, upgrades, materials, rosterCount, tavernPrestige, onHireUpgrade, onSellMaterials, onCraftGear, recruitedCount, recruitedAdventurers }: ManagementSceneProps) {
+  const [pendingRecipeId, setPendingRecipeId] = useState<string | null>(null);
   const rosterMax = ROSTER_BASE + (upgrades.rosterSlots ?? 0) * ROSTER_UPGRADE_SIZE;
   const rooms = upgrades.rooms ?? 0;
   const basement = upgrades.basement ?? false;
@@ -177,11 +181,128 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
   const prestige3Unlocked = tavernPrestige >= 3;
 
   return (
+    <>
+    {/* Adventurer picker modal */}
+    {pendingRecipeId && (() => {
+      const recipe = GEAR_RECIPES.find(r => r.id === pendingRecipeId)!;
+      return (
+        <div
+          onClick={() => setPendingRecipeId(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'rgba(15,8,2,0.98)',
+              border: '1px solid #5c3315',
+              borderRadius: 12,
+              padding: '24px 28px',
+              minWidth: 320,
+              maxWidth: 440,
+              fontFamily: 'serif',
+            }}
+          >
+            <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 17, marginBottom: 4 }}>
+              {recipe.icon} Equip {recipe.name}
+            </div>
+            <div style={{ color: '#7a6a5a', fontSize: 12, marginBottom: 18 }}>
+              Choose which adventurer receives this gear
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recruitedAdventurers.map(adv => {
+                const classColors: Record<string, string> = {
+                  warrior: '#e67e22', mage: '#9b59b6', rogue: '#27ae60', healer: '#3498db',
+                };
+                const classIcons: Record<string, string> = {
+                  warrior: '⚔', mage: '🔮', rogue: '🗡', healer: '💚',
+                };
+                const color = classColors[adv.class] ?? '#c8960c';
+                const icon = classIcons[adv.class] ?? '👤';
+                const isOnQuest = adv.status === 'on-quest';
+                return (
+                  <button
+                    key={adv.id}
+                    onClick={() => {
+                      onCraftGear(pendingRecipeId, adv.id);
+                      setPendingRecipeId(null);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      background: `rgba(${color === '#e67e22' ? '230,126,34' : color === '#9b59b6' ? '155,89,182' : color === '#27ae60' ? '39,174,96' : '52,152,219'},0.10)`,
+                      border: `1px solid ${color}55`,
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      cursor: 'pointer',
+                      fontFamily: 'serif',
+                      textAlign: 'left',
+                      width: '100%',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = `rgba(200,150,12,0.15)`)}
+                    onMouseLeave={e => (e.currentTarget.style.background = `rgba(${color === '#e67e22' ? '230,126,34' : color === '#9b59b6' ? '155,89,182' : color === '#27ae60' ? '39,174,96' : '52,152,219'},0.10)`)}
+                  >
+                    <span style={{ fontSize: 20 }}>{icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>
+                        {adv.name}
+                        {isOnQuest && (
+                          <span style={{ color: '#7a6a5a', fontWeight: 'normal', fontSize: 11, marginLeft: 8 }}>
+                            (on quest)
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color, fontSize: 11, marginTop: 1 }}>
+                        Lv.{adv.level} {adv.class.charAt(0).toUpperCase() + adv.class.slice(1)}
+                        <span style={{ color: '#7a6a5a', marginLeft: 8 }}>
+                          ⚔ {adv.attack} · 🛡 {adv.defense} · ❤ {adv.maxHp}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{ color: '#c8960c', fontSize: 12, fontWeight: 'bold', flexShrink: 0 }}>
+                      Equip →
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setPendingRecipeId(null)}
+              style={{
+                marginTop: 16,
+                width: '100%',
+                background: 'transparent',
+                border: '1px solid #3a2a18',
+                borderRadius: 6,
+                color: '#5a4a38',
+                fontFamily: 'serif',
+                fontSize: 13,
+                padding: '7px',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    })()}
     <div style={{
       position: 'fixed',
       inset: 0,
       top: 40,
-      background: '#0d0700',
+      background: 'transparent',
       overflowY: 'auto',
       fontFamily: 'serif',
       zIndex: 10,
@@ -192,8 +313,12 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
         padding: '24px 20px 48px',
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ color: '#e8d5a0', margin: 0, fontSize: 24, letterSpacing: 1 }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
+          background: 'rgba(8,4,1,0.72)', borderRadius: 10, padding: '12px 16px',
+          backdropFilter: 'blur(6px)', border: '1px solid rgba(92,51,21,0.4)',
+        }}>
+          <h1 style={{ color: '#e8d5a0', margin: 0, fontSize: 24, letterSpacing: 1, textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}>
             Tavern Management
           </h1>
           <div style={{
@@ -474,6 +599,200 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
           </div>
         )}
 
+        {/* Gear Crafting — only when basement is unlocked */}
+        {basement && (
+          <>
+            <div style={{ color: '#4a3a28', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', margin: '20px 0 10px' }}>
+              Gear Crafting
+            </div>
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 20 }}>⚒</span>
+                <div>
+                  <div style={sectionTitle}>Smithy &amp; Alchemist</div>
+                  <div style={sectionSubtitle}>
+                    Craft gear from herbs and ore — equip to a chosen adventurer
+                  </div>
+                </div>
+              </div>
+
+              {/* Material stock reminder */}
+              <div style={{
+                display: 'flex', gap: 10, marginBottom: 14,
+                background: 'rgba(0,0,0,0.3)', border: '1px solid #2a1a08',
+                borderRadius: 7, padding: '8px 12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 15 }}>🌿</span>
+                  <span style={{ color: '#c8960c', fontWeight: 'bold', fontSize: 14 }}>{materials.herbs}</span>
+                  <span style={{ color: '#7a6a5a', fontSize: 12 }}>Herbs</span>
+                </div>
+                <div style={{ color: '#3a2a18', fontSize: 14, alignSelf: 'center' }}>·</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 15 }}>⛏️</span>
+                  <span style={{ color: '#aaa', fontWeight: 'bold', fontSize: 14 }}>{materials.ore}</span>
+                  <span style={{ color: '#7a6a5a', fontSize: 12 }}>Ore</span>
+                </div>
+                {recruitedCount === 0 && (
+                  <div style={{ marginLeft: 'auto', color: '#7a6a5a', fontSize: 11, fontStyle: 'italic', alignSelf: 'center' }}>
+                    Recruit adventurers to equip
+                  </div>
+                )}
+              </div>
+
+              {/* Recipe cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {GEAR_RECIPES.map(recipe => {
+                  const guildLocked = recipe.requiresGuildHall && !upgrades.guildHall;
+                  const canAffordHerbs = materials.herbs >= recipe.cost.herbs;
+                  const canAffordOre = materials.ore >= recipe.cost.ore;
+                  const canAfford = canAffordHerbs && canAffordOre;
+                  const hasRecruited = recruitedCount > 0;
+                  const canCraft = !guildLocked && canAfford && hasRecruited;
+
+                  return (
+                    <div
+                      key={recipe.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 12,
+                        background: guildLocked
+                          ? 'rgba(0,0,0,0.1)'
+                          : canCraft
+                            ? 'rgba(200,150,12,0.06)'
+                            : 'rgba(0,0,0,0.2)',
+                        border: guildLocked
+                          ? '1px solid #1e1208'
+                          : canCraft
+                            ? '1px solid #c8960c44'
+                            : '1px solid #2a1a08',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        opacity: guildLocked ? 0.45 : 1,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {/* Icon */}
+                      <div style={{ fontSize: 26, flexShrink: 0, lineHeight: 1, marginTop: 2 }}>
+                        {recipe.icon}
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <div style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 14 }}>
+                            {recipe.name}
+                          </div>
+                          {guildLocked && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 'bold', color: '#f1c40f',
+                              background: 'rgba(241,196,15,0.12)', border: '1px solid rgba(241,196,15,0.3)',
+                              borderRadius: 3, padding: '1px 5px', letterSpacing: 0.5,
+                            }}>
+                              🏛 Guild Hall
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: '#7a6a5a', fontSize: 11, lineHeight: 1.4, marginBottom: 7 }}>
+                          {recipe.description}
+                        </div>
+
+                        {/* Effects */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                          {recipe.effects.map((eff, i) => {
+                            const statLabel = eff.stat === 'maxHp' ? 'Max HP' : eff.stat === 'attack' ? 'Attack' : 'Defense';
+                            const statColor = eff.stat === 'maxHp' ? '#e74c3c' : eff.stat === 'attack' ? '#e67e22' : '#3498db';
+                            return (
+                              <span key={i} style={{
+                                background: `rgba(${hexToRgbStr(statColor)},0.12)`,
+                                border: `1px solid ${statColor}44`,
+                                borderRadius: 4,
+                                color: statColor,
+                                fontSize: 11,
+                                fontWeight: 'bold',
+                                padding: '2px 7px',
+                              }}>
+                                +{eff.amount} {statLabel}
+                              </span>
+                            );
+                          })}
+                          <span style={{ color: '#4a3a28', fontSize: 11, alignSelf: 'center' }}>
+                            · chosen adventurer
+                          </span>
+                        </div>
+
+                        {/* Cost row — always show both herb and ore so players see the exact full cost */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ color: '#4a3a28', fontSize: 11 }}>Requires:</span>
+                          <span style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            background: canAffordHerbs ? 'rgba(200,150,12,0.1)' : 'rgba(200,50,50,0.1)',
+                            border: `1px solid ${canAffordHerbs ? '#c8960c55' : '#e74c3c55'}`,
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            color: canAffordHerbs ? '#c8960c' : '#e74c3c',
+                          }}>
+                            🌿 {recipe.cost.herbs} Herb{recipe.cost.herbs !== 1 ? 's' : ''}
+                            {recipe.cost.herbs > 0 && !canAffordHerbs && (
+                              <span style={{ fontWeight: 'normal', fontSize: 10, color: '#e74c3c' }}>
+                                &nbsp;({materials.herbs}/{recipe.cost.herbs})
+                              </span>
+                            )}
+                          </span>
+                          <span style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            background: canAffordOre ? 'rgba(170,170,170,0.08)' : 'rgba(200,50,50,0.1)',
+                            border: `1px solid ${canAffordOre ? '#aaa5' : '#e74c3c55'}`,
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            color: canAffordOre ? '#aaa' : '#e74c3c',
+                          }}>
+                            ⛏️ {recipe.cost.ore} Ore
+                            {recipe.cost.ore > 0 && !canAffordOre && (
+                              <span style={{ fontWeight: 'normal', fontSize: 10, color: '#e74c3c' }}>
+                                &nbsp;({materials.ore}/{recipe.cost.ore})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Equip to button */}
+                      <button
+                        onClick={() => canCraft && setPendingRecipeId(recipe.id)}
+                        disabled={!canCraft}
+                        style={{
+                          flexShrink: 0,
+                          background: canCraft
+                            ? 'linear-gradient(180deg, #8a5422 0%, #5c3315 100%)'
+                            : '#1a0e05',
+                          border: canCraft ? '1px solid #a0631e' : '1px solid #2a1a08',
+                          borderRadius: 6,
+                          color: canCraft ? '#e8d5a0' : '#3a2510',
+                          fontFamily: 'serif',
+                          fontWeight: 'bold',
+                          fontSize: 13,
+                          padding: '7px 14px',
+                          cursor: canCraft ? 'pointer' : 'not-allowed',
+                          whiteSpace: 'nowrap',
+                          alignSelf: 'center',
+                        }}
+                      >
+                        {guildLocked ? '🔒' : 'Equip to…'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Prestige Upgrades */}
         <div style={{ color: '#4a3a28', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', margin: '20px 0 10px' }}>
           Prestige Upgrades
@@ -543,13 +862,14 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
                 <div style={sectionTitle}>Guild Hall</div>
                 <PrestigeTierBadge tier={tavernPrestige} required={3} />
               </div>
-              <div style={sectionSubtitle}>An official Guild charter lowers operational costs</div>
+              <div style={sectionSubtitle}>Unlock master-tier crafting recipes for your adventurers</div>
             </div>
           </div>
           <div style={{ color: '#7a6a5a', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
-            Establish a Guild Hall that halves the dispatch cost —{' '}
-            from <strong style={{ color: '#e74c3c' }}>10g</strong> down to{' '}
-            <strong style={{ color: '#2ecc71' }}>5g</strong> per quest.
+            Establish a Guild Hall to unlock three advanced crafting recipes —{' '}
+            <strong style={{ color: '#e8d5a0' }}>Fortifying Tonic</strong>,{' '}
+            <strong style={{ color: '#e8d5a0' }}>War Kit</strong>, and{' '}
+            <strong style={{ color: '#e8d5a0' }}>Bulwark Set</strong> — for significantly stronger stat bonuses.
           </div>
           {upgrades.guildHall ? (
             <PurchasedBadge label="Guild Hall established" />
@@ -601,6 +921,7 @@ export function ManagementScene({ gold, upgrades, materials, rosterCount, tavern
         </div>
       </div>
     </div>
+    </>
   );
 }
 

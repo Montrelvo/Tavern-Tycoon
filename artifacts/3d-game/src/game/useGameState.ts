@@ -11,8 +11,12 @@ import {
   ROSTER_BASE, ROSTER_UPGRADE_SIZE, ROSTER_UPGRADE_COST,
   TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST, PRESTIGE_CLASS_FOR, PRESTIGE_CLASS_LABELS,
-  BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS,
+  BASE_STATS_BY_CLASS, STAT_GROWTH_BY_CLASS, GEAR_RECIPES,
+  QUEST_TIER_UNLOCK_QUESTS, QUEST_TIER_UNLOCK_PRESTIGE,
+  QUEST_TIER_DROP_CHANCE, QUEST_TIER_DROP_MIN, QUEST_TIER_DROP_MAX,
+  QUEST_TIER_RELIC_WEIGHT, QUEST_TIER_BONUS_DROPS,
 } from './constants';
+import type { QuestTier } from './types';
 import { calculateEffectivePower } from './questUtils';
 
 const SAVE_KEY = 'tavern_save_v1';
@@ -35,16 +39,16 @@ interface BountyDefinition {
 const BOUNTY_POOL: BountyDefinition[] = [
   { name: 'Beast Slayer',         description: 'Beasts ravage the countryside. Adventurers who hunt them earn a bounty.',       targetMonsterType: 'beast',   requiredKills: 3, reward: 75,  materialReward: { type: 'pelts',  amount: 2 } },
   { name: 'Dire Wolf Culling',    description: 'The wolf packs have grown bold. The pelts alone are worth the effort.',          targetMonsterType: 'beast',   requiredKills: 2, reward: 30,  materialReward: { type: 'pelts',  amount: 3 } },
-  { name: 'Monster Hunter',       description: 'Bring proof of five beast kills to the Hunters\' Lodge.',                        targetMonsterType: 'beast',   requiredKills: 5, reward: 120 },
+  { name: 'Monster Hunter',       description: 'Bring proof of five beast kills to the Hunters\' Lodge. Foraged herbs are part of the prize.', targetMonsterType: 'beast',   requiredKills: 5, reward: 90,  materialReward: { type: 'herbs', amount: 3 } },
   { name: 'Arcane Purge',         description: 'Magical disturbances haunt the region. Strange venom drips from slain horrors.', targetMonsterType: 'arcane',  requiredKills: 3, reward: 90,  materialReward: { type: 'venom',  amount: 2 } },
   { name: 'Relic Seeker',         description: 'The mages\' council pays in rare relics for arcane quest completions.',          targetMonsterType: 'arcane',  requiredKills: 2, reward: 30,  materialReward: { type: 'relics', amount: 3 } },
   { name: 'Void Hunter',          description: 'Stamp out five arcane threats for a generous reward.',                           targetMonsterType: 'arcane',  requiredKills: 5, reward: 140 },
   { name: 'Shadow Operative',     description: 'The Thieves\' Guild rewards discretion — and the venom of their quarry.',        targetMonsterType: 'stealth', requiredKills: 3, reward: 80,  materialReward: { type: 'venom',  amount: 2 } },
-  { name: 'Silent Blade Contract',description: 'Complete two stealth missions for the Guild\'s bounty prize.',                   targetMonsterType: 'stealth', requiredKills: 2, reward: 55 },
+  { name: 'Silent Blade Contract',description: 'Complete two stealth missions for the Guild\'s bounty prize — and a bundle of rare herbs.', targetMonsterType: 'stealth', requiredKills: 2, reward: 30,  materialReward: { type: 'herbs', amount: 2 } },
   { name: 'Ghost Protocol',       description: 'Five stealth completions earn you the Guild\'s highest honours — and trophies.', targetMonsterType: 'stealth', requiredKills: 5, reward: 130, materialReward: { type: 'pelts',  amount: 4 } },
   { name: 'Battlefield Veteran',  description: 'Survive three combat engagements. Bones are the soldier\'s grim currency.',     targetMonsterType: 'combat',  requiredKills: 3, reward: 85,  materialReward: { type: 'bones',  amount: 2 } },
   { name: 'War Hero',             description: 'Two victories in direct combat — keep the bones as proof of your deeds.',       targetMonsterType: 'combat',  requiredKills: 2, reward: 35,  materialReward: { type: 'bones',  amount: 3 } },
-  { name: 'Iron Warlord',         description: 'Five combat victories — only the strongest earn this bounty.',                  targetMonsterType: 'combat',  requiredKills: 5, reward: 150 },
+  { name: 'Iron Warlord',         description: 'Five combat victories — only the strongest earn this bounty. Raw ore is your reward.',   targetMonsterType: 'combat',  requiredKills: 5, reward: 110, materialReward: { type: 'ore',   amount: 3 } },
 ];
 
 function generateBounties(): BountyQuest[] {
@@ -141,9 +145,56 @@ function generateAdventurer(occupiedPositions: [number, number, number][]): Adve
   };
 }
 
-function generateQuests(): Quest[] {
-  const shuffled = [...QUEST_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3).map(q => ({
+const ALL_TIERS: QuestTier[] = ['common', 'uncommon', 'rare', 'legendary'];
+
+function getUnlockedTiers(questsCompleted: number, tavernPrestige: number): QuestTier[] {
+  return ALL_TIERS.filter(tier =>
+    questsCompleted >= QUEST_TIER_UNLOCK_QUESTS[tier] ||
+    tavernPrestige >= QUEST_TIER_UNLOCK_PRESTIGE[tier]
+  );
+}
+
+const BASE_TIER_WEIGHTS: Record<QuestTier, number> = {
+  common: 1,
+  uncommon: 2,
+  rare: 3,
+  legendary: 4,
+};
+
+function getTierWeights(unlockedTiers: QuestTier[]): Record<QuestTier, number> {
+  const weights = { ...BASE_TIER_WEIGHTS };
+  if (unlockedTiers.length > 1) {
+    const highestUnlocked = unlockedTiers[unlockedTiers.length - 1];
+    weights[highestUnlocked] = (weights[highestUnlocked] ?? 1) + 3;
+  }
+  return weights;
+}
+
+function generateQuests(questsCompleted = 0, tavernPrestige = 0): Quest[] {
+  const unlockedTiers = getUnlockedTiers(questsCompleted, tavernPrestige);
+  const pool = QUEST_POOL.filter(q => unlockedTiers.includes(q.tier));
+  const fallback = QUEST_POOL.filter(q => q.tier === 'common');
+  const source = pool.length >= 3 ? pool : fallback;
+
+  const tierWeights = getTierWeights(unlockedTiers);
+  const weightedPool: typeof QUEST_POOL = [];
+  for (const q of source) {
+    const w = tierWeights[q.tier] ?? 1;
+    for (let i = 0; i < w; i++) weightedPool.push(q);
+  }
+
+  const picked: typeof QUEST_POOL = [];
+  const remaining = [...weightedPool];
+  while (picked.length < 3 && remaining.length > 0) {
+    const idx = Math.floor(Math.random() * remaining.length);
+    const candidate = remaining[idx];
+    remaining.splice(idx, 1);
+    if (!picked.some(p => p.name === candidate.name)) {
+      picked.push(candidate);
+    }
+  }
+
+  return picked.map(q => ({
     ...q,
     id: `quest-${++questCounter}`,
     status: 'available' as const,
@@ -277,9 +328,14 @@ function loadFromStorage(): GameState {
       b => b.status === 'active' || b.status === 'available'
     );
     const mergedBounties = persistedBounties.length > 0 ? persistedBounties : generateBounties();
+    const normalizedQuests: Quest[] = (parsed.quests ?? []).map(q => ({
+      ...q,
+      tier: (q as Quest & { tier?: QuestTier }).tier ?? 'common',
+    }));
     const restored: GameState = {
       ...parsed,
       adventurers: persistedAdventurers,
+      quests: normalizedQuests,
       bounties: mergedBounties,
       selectedAdventurerId: null,
       showQuestBoard: false,
@@ -468,10 +524,18 @@ function reducer(state: GameState, action: GameAction): GameState {
         let finalLog = addLog(state.gameLog, logMsg);
         deathLog.forEach(msg => { finalLog = addLog(finalLog, msg); });
         let dropNotification: DropNotification | null = null;
-        if (state.upgrades.basement && Math.random() < 0.4) {
-          const dropCount = Math.floor(Math.random() * 2) + 1;
+        const questTier = quest.tier ?? 'common';
+        const tierDropChance = QUEST_TIER_DROP_CHANCE[questTier];
+        const tierDropMin = QUEST_TIER_DROP_MIN[questTier];
+        const tierDropMax = QUEST_TIER_DROP_MAX[questTier];
+        if (state.upgrades.basement && Math.random() < tierDropChance) {
+          const dropCount = tierDropMin + Math.floor(Math.random() * (tierDropMax - tierDropMin + 1));
           const materialKeys: Array<keyof Materials> = [];
-          const craftingPool: Array<keyof Materials> = ['herbs', 'ore', 'relics'];
+          const relicWeight = QUEST_TIER_RELIC_WEIGHT[questTier];
+          const craftingPool: Array<keyof Materials> = [
+            'herbs', 'ore', 'relics',
+            ...Array(relicWeight).fill('relics' as keyof Materials),
+          ];
           const questTypePool = MONSTER_PART_DROPS[quest.questType];
           const assignedAdventurers = state.adventurers.filter(a => quest.assignedAdventurerIds.includes(a.id));
           const classPool: Array<keyof Materials> = assignedAdventurers.flatMap(a => CLASS_PART_DROPS[a.class]);
@@ -480,6 +544,13 @@ function reducer(state: GameState, action: GameAction): GameState {
             const useMonsterPart = Math.random() < 0.6;
             const pool = useMonsterPart ? monsterPool : craftingPool;
             const mat = pool[Math.floor(Math.random() * pool.length)];
+            newMaterials[mat] += 1;
+            materialKeys.push(mat);
+          }
+          const bonusDrops = QUEST_TIER_BONUS_DROPS[questTier];
+          const bonusPool: Array<keyof Materials> = ['relics', 'venom', 'bones'];
+          for (let i = 0; i < bonusDrops; i++) {
+            const mat = bonusPool[Math.floor(Math.random() * bonusPool.length)];
             newMaterials[mat] += 1;
             materialKeys.push(mat);
           }
@@ -628,7 +699,7 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'REFRESH_QUESTS': {
       const activeQuests = state.quests.filter(q => q.status === 'active');
-      const newQuests = generateQuests().filter(nq =>
+      const newQuests = generateQuests(state.questsCompleted, state.tavernPrestige).filter(nq =>
         !activeQuests.some(aq => aq.name === nq.name)
       ).slice(0, 3 - activeQuests.length);
       return {
@@ -760,7 +831,7 @@ function reducer(state: GameState, action: GameAction): GameState {
           ...state,
           gold: state.gold - 300,
           upgrades: { ...state.upgrades, guildHall: true },
-          gameLog: addLog(state.gameLog, 'Guild Hall established! Quest dispatch cost is halved.'),
+          gameLog: addLog(state.gameLog, 'Guild Hall established! Advanced crafting recipes are now available.'),
         };
       }
       return state;
@@ -856,17 +927,79 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ABANDON_BOUNTY': {
+      if (state.gamePhase !== 'playing') return state;
+      const bounties = state.bounties ?? [];
+      const bounty = bounties.find(b => b.id === action.bountyId);
+      if (!bounty || bounty.status !== 'active') return state;
+      return {
+        ...state,
+        bounties: bounties.filter(b => b.id !== action.bountyId),
+        gameLog: addLog(state.gameLog, `Bounty "${bounty.name}" abandoned. The slot is now free.`),
+      };
+    }
+
     case 'REFRESH_BOUNTIES': {
       if (state.gamePhase !== 'playing') return state;
       const bounties = state.bounties ?? [];
       const activeBounties = bounties.filter(b => b.status === 'active');
-      const newBounties = generateBounties().filter(nb =>
-        !activeBounties.some(ab => ab.name === nb.name)
-      ).slice(0, 3 - activeBounties.length);
+      const partialBounties = bounties.filter(b => b.status === 'available' && b.currentKills > 0);
+      const keptBounties = [...activeBounties, ...partialBounties];
+      const slotsToFill = 3 - keptBounties.length;
+      const newBounties = slotsToFill > 0
+        ? generateBounties().filter(nb =>
+            !keptBounties.some(kb => kb.name === nb.name)
+          ).slice(0, slotsToFill)
+        : [];
+      const logMsg = partialBounties.length > 0
+        ? `New bounties posted! ${partialBounties.length} ${partialBounties.length > 1 ? 'bounties' : 'bounty'} with partial progress ${partialBounties.length > 1 ? 'were' : 'was'} kept.`
+        : 'New bounties posted on the board!';
       return {
         ...state,
-        bounties: [...activeBounties, ...newBounties],
-        gameLog: addLog(state.gameLog, 'New bounties posted on the board!'),
+        bounties: [...keptBounties, ...newBounties],
+        gameLog: addLog(state.gameLog, logMsg),
+      };
+    }
+
+    case 'CRAFT_GEAR': {
+      if (state.gamePhase !== 'playing') return state;
+      if (!state.upgrades.basement) return state;
+      const recipe = GEAR_RECIPES.find(r => r.id === action.recipeId);
+      if (!recipe) return state;
+      if (state.materials.herbs < recipe.cost.herbs || state.materials.ore < recipe.cost.ore) return state;
+
+      const target = state.adventurers.find(
+        a => a.id === action.adventurerId && (a.status === 'recruited' || a.status === 'on-quest')
+      );
+      if (!target) return state;
+
+      const updatedAdventurers = state.adventurers.map(a => {
+        if (a.id !== action.adventurerId) return a;
+        let updated = { ...a };
+        for (const effect of recipe.effects) {
+          if (effect.stat === 'attack') updated = { ...updated, attack: updated.attack + effect.amount };
+          else if (effect.stat === 'defense') updated = { ...updated, defense: updated.defense + effect.amount };
+          else if (effect.stat === 'maxHp') {
+            updated = { ...updated, maxHp: updated.maxHp + effect.amount, hp: updated.hp + effect.amount };
+          }
+        }
+        return updated;
+      });
+
+      const effectLabels = recipe.effects.map(e => {
+        const label = e.stat === 'maxHp' ? 'Max HP' : e.stat === 'attack' ? 'Attack' : 'Defense';
+        return `+${e.amount} ${label}`;
+      }).join(', ');
+
+      return {
+        ...state,
+        materials: {
+          ...state.materials,
+          herbs: state.materials.herbs - recipe.cost.herbs,
+          ore: state.materials.ore - recipe.cost.ore,
+        },
+        adventurers: updatedAdventurers,
+        gameLog: addLog(state.gameLog, `Crafted ${recipe.name} for ${target.name}! They gained ${effectLabels}.`),
       };
     }
 
@@ -1049,8 +1182,16 @@ export function useGameState() {
     dispatch({ type: 'ACCEPT_BOUNTY', bountyId });
   }, []);
 
+  const abandonBounty = useCallback((bountyId: string) => {
+    dispatch({ type: 'ABANDON_BOUNTY', bountyId });
+  }, []);
+
   const refreshBounties = useCallback(() => {
     dispatch({ type: 'REFRESH_BOUNTIES' });
+  }, []);
+
+  const craftGear = useCallback((recipeId: string, adventurerId: string) => {
+    dispatch({ type: 'CRAFT_GEAR', recipeId, adventurerId });
   }, []);
 
   return {
@@ -1068,6 +1209,8 @@ export function useGameState() {
     spendUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
+    abandonBounty,
     refreshBounties,
+    craftGear,
   };
 }

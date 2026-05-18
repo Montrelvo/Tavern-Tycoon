@@ -1,4 +1,4 @@
-import type { AdventurerClass, PrestigeClass, QuestType } from './types';
+import type { AdventurerClass, PrestigeClass, QuestType, QuestTier } from './types';
 
 export const ADVENTURER_NAMES = [
   'Aldric', 'Brynn', 'Caelum', 'Dara', 'Eryn',
@@ -56,21 +56,103 @@ export const MAX_LEVEL = 5;
 export const ELITE_LEVEL = 4;
 export const POWER_PER_LEVEL = 2;
 
-export const QUEST_POOL = [
-  { name: 'Clear the Spider Caves', description: 'Giant spiders have taken over the old mines east of town.', reward: 80, powerRequired: 8, duration: 25, questType: 'beast' as QuestType },
-  { name: 'Escort the Merchant', description: 'A wealthy merchant needs protection on the northern road.', reward: 50, powerRequired: 5, duration: 15, questType: 'stealth' as QuestType },
-  { name: 'Slay the River Troll', description: 'A massive troll blocks the bridge to Millhaven.', reward: 100, powerRequired: 12, duration: 30, questType: 'beast' as QuestType },
-  { name: 'Recover the Lost Relic', description: 'An ancient relic was stolen by bandits in the Ashwood.', reward: 120, powerRequired: 15, duration: 35, questType: 'arcane' as QuestType },
-  { name: 'Hunt the Dire Wolf Pack', description: 'Wolves have been terrorizing farming villages to the south.', reward: 70, powerRequired: 9, duration: 20, questType: 'beast' as QuestType },
-  { name: 'Explore the Haunted Keep', description: 'Restless spirits haunt the old castle north of town.', reward: 90, powerRequired: 11, duration: 25, questType: 'arcane' as QuestType },
-  { name: 'Retrieve Stolen Cargo', description: 'River pirates stole Guild shipments at the docks.', reward: 60, powerRequired: 6, duration: 18, questType: 'stealth' as QuestType },
-  { name: 'Defeat the Goblin Warlord', description: 'Goblins led by a cunning warlord raid supply wagons.', reward: 110, powerRequired: 13, duration: 30, questType: 'combat' as QuestType },
-  { name: 'Purge the Undead Crypt', description: 'Necromancers have raised an army in the old burial grounds.', reward: 130, powerRequired: 16, duration: 40, questType: 'arcane' as QuestType },
-  { name: 'Rescue the Hostages', description: 'Cultists have taken hostages in the mountains.', reward: 95, powerRequired: 10, duration: 22, questType: 'stealth' as QuestType },
+export const QUEST_TIER_COLORS: Record<QuestTier, string> = {
+  common:    '#8a8a8a',
+  uncommon:  '#2ecc71',
+  rare:      '#3498db',
+  legendary: '#f1c40f',
+};
+
+export const QUEST_TIER_LABELS: Record<QuestTier, string> = {
+  common:    'Common',
+  uncommon:  'Uncommon',
+  rare:      'Rare',
+  legendary: 'Legendary',
+};
+
+export const QUEST_TIER_UNLOCK_QUESTS: Record<QuestTier, number> = {
+  common:    0,
+  uncommon:  10,
+  rare:      25,
+  legendary: 50,
+};
+
+export const QUEST_TIER_UNLOCK_PRESTIGE: Record<QuestTier, number> = {
+  common:    0,
+  uncommon:  1,
+  rare:      2,
+  legendary: 3,
+};
+
+export const QUEST_TIER_DROP_CHANCE: Record<QuestTier, number> = {
+  common:    0.40,
+  uncommon:  0.55,
+  rare:      0.70,
+  legendary: 0.85,
+};
+
+export const QUEST_TIER_DROP_MIN: Record<QuestTier, number> = {
+  common:    1,
+  uncommon:  1,
+  rare:      2,
+  legendary: 3,
+};
+
+export const QUEST_TIER_DROP_MAX: Record<QuestTier, number> = {
+  common:    2,
+  uncommon:  3,
+  rare:      4,
+  legendary: 5,
+};
+
+export const QUEST_TIER_RELIC_WEIGHT: Record<QuestTier, number> = {
+  common:    0,
+  uncommon:  1,
+  rare:      3,
+  legendary: 5,
+};
+
+export const QUEST_TIER_BONUS_DROPS: Record<QuestTier, number> = {
+  common:    0,
+  uncommon:  0,
+  rare:      1,
+  legendary: 2,
+};
+
+export const QUEST_POOL: Array<{
+  name: string; description: string; reward: number;
+  powerRequired: number; duration: number; questType: QuestType; tier: QuestTier;
+}> = [
+  { tier: 'common', name: 'Clear the Spider Caves',   description: 'Giant spiders have taken over the old mines east of town.',      reward: 80,  powerRequired: 8,  duration: 25, questType: 'beast'   as QuestType },
+  { tier: 'common', name: 'Escort the Merchant',       description: 'A wealthy merchant needs protection on the northern road.',       reward: 50,  powerRequired: 5,  duration: 15, questType: 'stealth' as QuestType },
+  { tier: 'common', name: 'Slay the River Troll',      description: 'A massive troll blocks the bridge to Millhaven.',                 reward: 100, powerRequired: 12, duration: 30, questType: 'beast'   as QuestType },
+  { tier: 'common', name: 'Hunt the Dire Wolf Pack',   description: 'Wolves have been terrorizing farming villages to the south.',     reward: 70,  powerRequired: 9,  duration: 20, questType: 'beast'   as QuestType },
+  { tier: 'common', name: 'Retrieve Stolen Cargo',     description: 'River pirates stole Guild shipments at the docks.',               reward: 60,  powerRequired: 6,  duration: 18, questType: 'stealth' as QuestType },
+  { tier: 'common', name: 'Bandit Camp Raid',          description: 'A band of cutthroats has been waylaying travellers on the road.', reward: 75,  powerRequired: 8,  duration: 22, questType: 'combat'  as QuestType },
+  { tier: 'common', name: 'Cull the Rat Swarms',       description: 'Diseased rats infest the market district cellars.',               reward: 45,  powerRequired: 4,  duration: 12, questType: 'beast'   as QuestType },
+  { tier: 'common', name: 'Pickpocket Ring',           description: 'Track down thieves bleeding the market dry.',                     reward: 55,  powerRequired: 5,  duration: 16, questType: 'stealth' as QuestType },
+
+  { tier: 'uncommon', name: 'Recover the Lost Relic',    description: 'An ancient relic was stolen by bandits in the Ashwood.',        reward: 180, powerRequired: 20, duration: 35, questType: 'arcane'  as QuestType },
+  { tier: 'uncommon', name: 'Explore the Haunted Keep',  description: 'Restless spirits haunt the old castle north of town.',           reward: 160, powerRequired: 18, duration: 30, questType: 'arcane'  as QuestType },
+  { tier: 'uncommon', name: 'Defeat the Goblin Warlord', description: 'Goblins led by a cunning warlord raid supply wagons.',           reward: 190, powerRequired: 22, duration: 35, questType: 'combat'  as QuestType },
+  { tier: 'uncommon', name: 'Rescue the Hostages',       description: 'Cultists have taken hostages deep in the mountains.',            reward: 170, powerRequired: 19, duration: 28, questType: 'stealth' as QuestType },
+  { tier: 'uncommon', name: 'Ogre Toll Extortion',       description: 'An ogre blocks the trade road, demanding tribute from all who pass.', reward: 155, powerRequired: 17, duration: 30, questType: 'combat' as QuestType },
+  { tier: 'uncommon', name: 'Poacher Ambush',            description: 'Poachers are slaying protected beasts in the king\'s forest.',  reward: 145, powerRequired: 16, duration: 26, questType: 'beast'   as QuestType },
+
+  { tier: 'rare', name: 'Purge the Undead Crypt',  description: 'Necromancers have raised an army in the old burial grounds.',         reward: 300, powerRequired: 35, duration: 50, questType: 'arcane'  as QuestType },
+  { tier: 'rare', name: 'Dragon Egg Retrieval',    description: 'A dragon\'s egg was stolen. Return it before the mother arrives.',    reward: 350, powerRequired: 40, duration: 55, questType: 'stealth' as QuestType },
+  { tier: 'rare', name: 'Siege the Black Fortress', description: 'A warlord\'s fortress terrorises three provinces. Breach it.',      reward: 380, powerRequired: 42, duration: 60, questType: 'combat'  as QuestType },
+  { tier: 'rare', name: 'The Lich\'s Grimoire',    description: 'Recover a cursed tome before a lich completes a catastrophic ritual.', reward: 320, powerRequired: 37, duration: 52, questType: 'arcane'  as QuestType },
+  { tier: 'rare', name: 'Wyvern Hunt',             description: 'A wyvern is burning fishing boats along the coast. Slay it.',         reward: 310, powerRequired: 36, duration: 50, questType: 'beast'   as QuestType },
+  { tier: 'rare', name: 'Assassin\'s Web',         description: 'A guild of assassins has marked the city\'s governor. Root them out.',reward: 290, powerRequired: 34, duration: 48, questType: 'stealth' as QuestType },
+
+  { tier: 'legendary', name: 'Siege of the Demon Keep',    description: 'An ancient demon lord stirs within a forbidden keep. Seal it before it awakens.', reward: 700, powerRequired: 70, duration: 90, questType: 'combat' as QuestType },
+  { tier: 'legendary', name: 'The World Serpent',          description: 'A primordial sea serpent surfaces from the depths, threatening the entire coast.',  reward: 750, powerRequired: 75, duration: 95, questType: 'beast'  as QuestType },
+  { tier: 'legendary', name: 'Eclipse of the Arcane Sun',  description: 'A rogue archmage threatens to unmake reality. Stop him at the apex of the eclipse.',reward: 720, powerRequired: 72, duration: 92, questType: 'arcane' as QuestType },
+  { tier: 'legendary', name: 'The Shadow Throne',          description: 'An ancient shadow cult plans to crown a wraith-king. Infiltrate and prevent the coronation.', reward: 680, powerRequired: 68, duration: 88, questType: 'stealth' as QuestType },
 ];
 
 export const MAX_PARTY_SIZE = 8;
-export const DISPATCH_COST = 10;
 export const ROSTER_BASE = 10;
 export const ROSTER_UPGRADE_SIZE = 5;
 export const ROSTER_UPGRADE_COST = 100;
@@ -169,3 +251,67 @@ export const STAT_DESCRIPTIONS: Record<BaseStat, string> = {
   int: 'Magical aptitude. Amplifies spell power and arcane knowledge.',
   wis: 'Perception and spirit. Enhances healing and resistance to curses.',
 };
+
+export interface GearRecipe {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  cost: { herbs: number; ore: number };
+  effects: Array<{ stat: 'attack' | 'defense' | 'maxHp'; amount: number }>;
+  requiresGuildHall?: boolean;
+}
+
+export const GEAR_RECIPES: GearRecipe[] = [
+  {
+    id: 'sharpening_stone',
+    name: 'Sharpening Stone',
+    icon: '🪨',
+    description: 'Honed from raw ore, this whetstone brings every blade to a razor edge.',
+    cost: { herbs: 0, ore: 2 },
+    effects: [{ stat: 'attack', amount: 2 }],
+  },
+  {
+    id: 'herbal_salve',
+    name: 'Herbal Salve',
+    icon: '🌿',
+    description: 'A soothing balm brewed from field herbs that bolsters the constitution of all in your service.',
+    cost: { herbs: 2, ore: 0 },
+    effects: [{ stat: 'maxHp', amount: 20 }],
+  },
+  {
+    id: 'iron_plates',
+    name: 'Iron Plates',
+    icon: '🛡',
+    description: 'Hammered ore plates riveted to armour for meaningful additional protection.',
+    cost: { herbs: 0, ore: 3 },
+    effects: [{ stat: 'defense', amount: 2 }],
+  },
+  {
+    id: 'fortifying_tonic',
+    name: 'Fortifying Tonic',
+    icon: '⚗️',
+    description: 'A potent herbal draught that hardens sinew and floods veins with vigour.',
+    cost: { herbs: 3, ore: 0 },
+    effects: [{ stat: 'maxHp', amount: 35 }],
+    requiresGuildHall: true,
+  },
+  {
+    id: 'war_kit',
+    name: 'War Kit',
+    icon: '⚔️',
+    description: 'Ore-tipped weapons and herbal combat rations — a complete combat loadout.',
+    cost: { herbs: 2, ore: 2 },
+    effects: [{ stat: 'attack', amount: 2 }, { stat: 'maxHp', amount: 15 }],
+    requiresGuildHall: true,
+  },
+  {
+    id: 'bulwark_set',
+    name: 'Bulwark Set',
+    icon: '🪖',
+    description: 'Reinforced pauldrons and medicinal poultices that make adventurers a wall of steel and herb.',
+    cost: { herbs: 2, ore: 3 },
+    effects: [{ stat: 'defense', amount: 3 }, { stat: 'maxHp', amount: 20 }],
+    requiresGuildHall: true,
+  },
+];

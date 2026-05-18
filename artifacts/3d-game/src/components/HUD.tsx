@@ -7,6 +7,7 @@ import {
   PRESTIGE_CLASS_LABELS, PRESTIGE_CLASS_COLORS, PRESTIGE_CLASS_PASSIVE_LABELS,
   PRESTIGE_CLASS_FOR, TAVERN_PRESTIGE_THRESHOLDS, TAVERN_PRESTIGE_NAMES,
   PRESTIGE_ADVENTURER_COST,
+  QUEST_TIER_COLORS, QUEST_TIER_LABELS,
 } from '../game/constants';
 import { getAdventurerBonus } from '../game/questUtils';
 
@@ -128,6 +129,7 @@ interface HUDProps {
   onDispatchQuest: (questId: string, adventurerIds: string[]) => void;
   onRefreshQuests: () => void;
   onAcceptBounty: (bountyId: string) => void;
+  onAbandonBounty: (bountyId: string) => void;
   onRefreshBounties: () => void;
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
@@ -853,6 +855,19 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(availableAdventurers.map(a => a.id))
   );
+  const [partyCap, setPartyCap] = useState<number>(availableAdventurers.length || 1);
+
+  useEffect(() => {
+    const count = availableAdventurers.length;
+    setPartyCap(prev => {
+      const clamped = Math.max(1, Math.min(count || 1, prev));
+      if (clamped !== prev) {
+        setSelectedIds(ids => new Set(Array.from(ids).filter(id => availableAdventurers.some(a => a.id === id)).slice(0, clamped)));
+      }
+      return clamped;
+    });
+    setSelectedIds(prev => new Set(Array.from(prev).filter(id => availableAdventurers.some(a => a.id === id))));
+  }, [availableAdventurers]);
 
   const selectedAdventurers = availableAdventurers.filter(a => selectedIds.has(a.id));
 
@@ -875,12 +890,31 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
   };
 
   const typeColor = QUEST_TYPE_COLORS[quest.questType];
+  const tier = quest.tier ?? 'common';
+  const tierColor = QUEST_TIER_COLORS[tier];
+  const tierLabel = QUEST_TIER_LABELS[tier];
 
   const toggleAdventurer = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else if (next.size < partyCap) {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const adjustCap = (delta: number) => {
+    setPartyCap(prev => {
+      const next = Math.max(1, Math.min(availableAdventurers.length || 1, prev + delta));
+      if (next < selectedIds.size) {
+        setSelectedIds(ids => {
+          const arr = Array.from(ids).slice(0, next);
+          return new Set(arr);
+        });
+      }
       return next;
     });
   };
@@ -888,10 +922,11 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
   return (
     <div style={{
       background: 'rgba(255,255,255,0.05)',
-      border: '1px solid #5c3315',
+      border: `1px solid ${tier === 'common' ? '#5c3315' : tierColor + '66'}`,
       borderRadius: 8,
       padding: 14,
       marginBottom: 12,
+      boxShadow: tier !== 'common' ? `0 0 8px ${tierColor}18` : 'none',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
         <div style={{ flex: 1 }}>
@@ -902,6 +937,14 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
               borderRadius: 4, padding: '1px 6px',
             }}>
               {QUEST_TYPE_LABELS[quest.questType]}
+            </span>
+            <span style={{
+              fontSize: 10, fontWeight: 'bold', color: tierColor,
+              background: `${tierColor}18`, border: `1px solid ${tierColor}55`,
+              borderRadius: 4, padding: '1px 6px',
+              letterSpacing: 0.3,
+            }}>
+              {tierLabel}
             </span>
           </div>
           <h3 style={{ color: '#e8d5a0', margin: 0, fontSize: 15 }}>{quest.name}</h3>
@@ -931,9 +974,41 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
 
       {quest.status === 'available' && availableAdventurers.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ color: '#b0a090', fontSize: 11, marginBottom: 4 }}>Select adventurers to send:</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ color: '#b0a090', fontSize: 11 }}>Party cap:</span>
+            <button
+              onClick={() => adjustCap(-1)}
+              disabled={partyCap <= 1}
+              style={{
+                width: 22, height: 22, borderRadius: 4, border: '1px solid #5c3315',
+                background: partyCap <= 1 ? '#1a0d04' : '#3a1e08', color: partyCap <= 1 ? '#3a2a18' : '#e8d5a0',
+                cursor: partyCap <= 1 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+              }}
+            >−</button>
+            <span style={{ color: '#e8d5a0', fontWeight: 'bold', fontSize: 13, minWidth: 16, textAlign: 'center' }}>
+              {partyCap}
+            </span>
+            <button
+              onClick={() => adjustCap(1)}
+              disabled={partyCap >= availableAdventurers.length}
+              style={{
+                width: 22, height: 22, borderRadius: 4, border: '1px solid #5c3315',
+                background: partyCap >= availableAdventurers.length ? '#1a0d04' : '#3a1e08',
+                color: partyCap >= availableAdventurers.length ? '#3a2a18' : '#e8d5a0',
+                cursor: partyCap >= availableAdventurers.length ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold', fontSize: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+              }}
+            >+</button>
+            <span style={{ color: '#5a4a3a', fontSize: 11 }}>of {availableAdventurers.length} available</span>
+          </div>
+          <div style={{ color: '#b0a090', fontSize: 11, marginBottom: 4 }}>
+            Select adventurers to send ({selectedIds.size}/{partyCap} selected):
+          </div>
           {availableAdventurers.map(adv => {
             const checked = selectedIds.has(adv.id);
+            const atCap = !checked && selectedIds.size >= partyCap;
             const color = adv.prestigeClass ? PRESTIGE_CLASS_COLORS[adv.prestigeClass] : CLASS_COLORS[adv.class];
             const effPower = getEffectivePower(adv);
             const hasBonus = effPower > adv.power;
@@ -946,7 +1021,8 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
                   padding: '4px 6px', borderRadius: 4, marginBottom: 2,
                   background: checked ? (elite || adv.prestigeClass ? `${color}14` : 'rgba(255,255,255,0.08)') : 'transparent',
                   border: `1px solid ${checked ? color : 'transparent'}`,
-                  cursor: 'pointer',
+                  cursor: atCap ? 'not-allowed' : 'pointer',
+                  opacity: atCap ? 0.45 : 1,
                   boxShadow: checked && (elite || adv.prestigeClass) ? `0 0 6px ${color}33` : 'none',
                 }}
               >
@@ -954,6 +1030,7 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
                   type="checkbox"
                   checked={checked}
                   onChange={() => toggleAdventurer(adv.id)}
+                  disabled={atCap}
                   style={{ accentColor: color, width: 13, height: 13 }}
                 />
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
@@ -972,6 +1049,11 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
               </label>
             );
           })}
+          {selectedIds.size >= partyCap && selectedIds.size < availableAdventurers.length && (
+            <div style={{ color: '#7a5a30', fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
+              Party cap reached — lower the cap or deselect someone to swap
+            </div>
+          )}
         </div>
       )}
 
@@ -1004,11 +1086,13 @@ function QuestCard({ quest, availableAdventurers, onDispatch }: {
   );
 }
 
-function BountyCard({ bounty, activeBountyCount, onAccept }: {
+function BountyCard({ bounty, activeBountyCount, onAccept, onAbandon }: {
   bounty: BountyQuest;
   activeBountyCount: number;
   onAccept: (id: string) => void;
+  onAbandon: (id: string) => void;
 }) {
+  const [confirmingAbandon, setConfirmingAbandon] = useState(false);
   const typeColor = QUEST_TYPE_COLORS[bounty.targetMonsterType] ?? '#c8960c';
   const typeLabel = QUEST_TYPE_LABELS[bounty.targetMonsterType] ?? bounty.targetMonsterType;
   const progressPct = Math.min(100, (bounty.currentKills / bounty.requiredKills) * 100);
@@ -1115,11 +1199,69 @@ function BountyCard({ bounty, activeBountyCount, onAccept }: {
           {canAccept ? 'Accept Bounty' : 'Max active bounties (2)'}
         </button>
       )}
+
+      {isActive && !confirmingAbandon && (
+        <button
+          onClick={() => setConfirmingAbandon(true)}
+          style={{
+            background: 'transparent',
+            border: '1px solid #5a2020',
+            borderRadius: 5,
+            color: '#a05050',
+            fontFamily: 'serif',
+            fontWeight: 'bold',
+            fontSize: 12,
+            padding: '4px 12px',
+            cursor: 'pointer',
+            marginTop: 4,
+          }}
+        >
+          Abandon
+        </button>
+      )}
+
+      {isActive && confirmingAbandon && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ color: '#c88', fontSize: 12, flex: 1 }}>Abandon this bounty? Progress will be lost.</span>
+          <button
+            onClick={() => { onAbandon(bounty.id); setConfirmingAbandon(false); }}
+            style={{
+              background: 'linear-gradient(180deg, #7a2222 0%, #4a1515 100%)',
+              border: '1px solid #9a3333',
+              borderRadius: 5,
+              color: '#f0c0c0',
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              fontSize: 12,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Yes, Abandon
+          </button>
+          <button
+            onClick={() => setConfirmingAbandon(false)}
+            style={{
+              background: '#1a0d04',
+              border: '1px solid #3d2410',
+              borderRadius: 5,
+              color: '#7a6a5a',
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+              fontSize: 12,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Keep
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRefresh, onAcceptBounty, onRefreshBounties, onClose }: {
+function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRefresh, onAcceptBounty, onAbandonBounty, onRefreshBounties, onClose }: {
   quests: Quest[];
   bounties: BountyQuest[];
   adventurers: Adventurer[];
@@ -1127,6 +1269,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRe
   onDispatch: (qid: string, aids: string[]) => void;
   onRefresh: () => void;
   onAcceptBounty: (bountyId: string) => void;
+  onAbandonBounty: (bountyId: string) => void;
   onRefreshBounties: () => void;
   onClose: () => void;
 }) {
@@ -1249,6 +1392,7 @@ function QuestBoardModal({ quests, bounties, adventurers, gold, onDispatch, onRe
                 bounty={bounty}
                 activeBountyCount={activeBountyCount}
                 onAccept={onAcceptBounty}
+                onAbandon={onAbandonBounty}
               />
             ))}
 
@@ -1434,7 +1578,7 @@ export function HUD({
   selectedAdventurerId, showQuestBoard, upgrades,
   questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRefreshQuests,
-  onAcceptBounty, onRefreshBounties, onPlaySound,
+  onAcceptBounty, onAbandonBounty, onRefreshBounties, onPlaySound,
   onNewGame,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
@@ -1521,26 +1665,30 @@ export function HUD({
               </span>
             </div>
           )}
-          <button
-            onClick={onNewGame}
-            title="Wipe save and start a new game"
-            style={{
-              position: 'absolute', top: 8, right: 8,
-              background: 'rgba(60,20,5,0.8)',
-              border: '1px solid #5c3315',
-              borderRadius: 5,
-              color: '#7a6a5a',
-              fontFamily: 'serif',
-              fontSize: 10,
-              padding: '2px 7px',
-              cursor: 'pointer',
-              letterSpacing: 0.3,
-            }}
-          >
-            New Game
-          </button>
         </div>
       </div>
+
+      {/* New Game button — fixed top-right, outside all panels */}
+      <button
+        onClick={onNewGame}
+        title="Wipe save and start a new game"
+        style={{
+          position: 'fixed', top: 12, right: 16,
+          background: 'rgba(60,20,5,0.8)',
+          border: '1px solid #5c3315',
+          borderRadius: 5,
+          color: '#7a6a5a',
+          fontFamily: 'serif',
+          fontSize: 10,
+          padding: '2px 7px',
+          cursor: 'pointer',
+          letterSpacing: 0.3,
+          pointerEvents: 'auto',
+          zIndex: 110,
+        }}
+      >
+        New Game
+      </button>
 
       {/* Left panel */}
       <LeftPanel
@@ -1617,6 +1765,7 @@ export function HUD({
             onDispatch={onDispatchQuest}
             onRefresh={onRefreshQuests}
             onAcceptBounty={onAcceptBounty}
+            onAbandonBounty={onAbandonBounty}
             onRefreshBounties={onRefreshBounties}
             onClose={onToggleQuestBoard}
           />
