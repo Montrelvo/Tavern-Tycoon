@@ -134,6 +134,8 @@ interface HUDProps {
   onPlaySound: (type: 'recruit' | 'questComplete' | 'questFail') => void;
   onNewGame: () => void;
   onSave: () => number | null;
+  onExportSave: () => void;
+  onImportSave: (file: File) => void;
   lastAutoSavedAt: number | null;
 }
 
@@ -1584,7 +1586,7 @@ export function HUD({
   questsCompleted, tavernPrestige, lastDropNotification,
   onRecruit, onSelectAdventurer, onToggleQuestBoard, onDispatchQuest, onRejectQuest,
   onAcceptBounty, onAbandonBounty, onRejectBounty, onPlaySound,
-  onNewGame, onSave, lastAutoSavedAt,
+  onNewGame, onSave, onExportSave, onImportSave, lastAutoSavedAt,
 }: HUDProps) {
   const roster = adventurers.filter(a => a.status === 'recruited' || a.status === 'on-quest');
   const wanderers = adventurers.filter(a => a.status === 'idle' || a.status === 'entering');
@@ -1602,6 +1604,7 @@ export function HUD({
   const [saveFlash, setSaveFlash] = useState(false);
   const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const importFileRef = useRef<HTMLInputElement | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
@@ -1821,6 +1824,54 @@ export function HUD({
           >
             Save
           </button>
+          {/* Export Save button */}
+          <button
+            onClick={onExportSave}
+            title="Download your save file as a backup"
+            style={{
+              background: 'rgba(10,25,45,0.85)',
+              border: '1px solid #2a4a7a',
+              borderRadius: 5,
+              color: '#6a9adf',
+              fontFamily: 'serif',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            Export
+          </button>
+          {/* Import Save button */}
+          <button
+            onClick={() => importFileRef.current?.click()}
+            title="Load a previously exported save file"
+            style={{
+              background: 'rgba(30,15,45,0.85)',
+              border: '1px solid #5a2a7a',
+              borderRadius: 5,
+              color: '#aa6adf',
+              fontFamily: 'serif',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            Import
+          </button>
+          {/* Hidden file input for import */}
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onImportSave(file);
+              e.target.value = '';
+            }}
+          />
           {/* New Game button */}
           <button
             onClick={() => setShowNewGameConfirm(true)}

@@ -1325,6 +1325,55 @@ export function useGameState() {
     return ok ? Date.now() : null;
   }, []);
 
+  const exportSave = useCallback(() => {
+    try {
+      const current = stateRef.current;
+      const toExport: GameState = {
+        ...current,
+        adventurers: current.adventurers.filter(
+          a => a.status === 'recruited' || a.status === 'on-quest'
+        ),
+        selectedAdventurerId: null,
+        showQuestBoard: false,
+      };
+      const blob = new Blob([JSON.stringify(toExport)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().slice(0, 10);
+      a.download = `tavern-save-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Export failed. Please try again.');
+    }
+  }, []);
+
+  const importSave = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (
+          typeof parsed !== 'object' || parsed === null ||
+          typeof parsed.gold !== 'number' ||
+          !Array.isArray(parsed.adventurers)
+        ) {
+          alert('This file does not look like a Tavern Owner save. Please choose a valid save file.');
+          return;
+        }
+        localStorage.setItem(SAVE_KEY, text);
+        window.location.reload();
+      } catch {
+        alert('Invalid save file. Please choose a valid Tavern Owner save.');
+      }
+    };
+    reader.readAsText(file);
+  }, []);
+
   return {
     state,
     recruitAdventurer,
@@ -1345,6 +1394,8 @@ export function useGameState() {
     abandonBounty,
     craftGear,
     manualSave,
+    exportSave,
+    importSave,
     lastAutoSavedAt,
   };
 }

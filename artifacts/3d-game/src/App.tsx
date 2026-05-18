@@ -210,6 +210,8 @@ export default function App() {
     abandonBounty,
     craftGear,
     manualSave,
+    exportSave,
+    importSave,
     lastAutoSavedAt,
   } = useGameState();
 
@@ -337,6 +339,8 @@ export default function App() {
             onPlaySound={playSound}
             onNewGame={newGame}
             onSave={manualSave}
+            onExportSave={exportSave}
+            onImportSave={importSave}
             lastAutoSavedAt={lastAutoSavedAt}
           />
         )}
