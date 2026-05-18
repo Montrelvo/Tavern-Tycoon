@@ -981,6 +981,34 @@ function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'REFUND_UPGRADE_POINT': {
+      if (state.gamePhase !== 'playing') return state;
+      const adv = state.adventurers.find(a => a.id === action.adventurerId);
+      if (!adv) return state;
+      const statLabel = action.stat === 'hp' ? 'HP' : action.stat === 'attack' ? 'Attack' : 'Defense';
+      let blocked = false;
+      const next = {
+        ...state,
+        adventurers: state.adventurers.map(a => {
+          if (a.id !== action.adventurerId) return a;
+          const pts = (a.upgradePoints ?? 0) + 1;
+          if (action.stat === 'hp') {
+            if (a.maxHp < 5) { blocked = true; return a; }
+            const newMax = a.maxHp - 5;
+            return { ...a, upgradePoints: pts, maxHp: newMax, hp: Math.min(a.hp, newMax) };
+          }
+          if (action.stat === 'attack') {
+            if (a.attack < 1) { blocked = true; return a; }
+            return { ...a, upgradePoints: pts, attack: a.attack - 1 };
+          }
+          if (a.defense < 1) { blocked = true; return a; }
+          return { ...a, upgradePoints: pts, defense: a.defense - 1 };
+        }),
+      };
+      if (blocked) return state;
+      return { ...next, gameLog: addLog(state.gameLog, `${adv.name} refunded a ${statLabel} upgrade.`) };
+    }
+
     case 'PRESTIGE_ADVENTURER': {
       if (state.gamePhase !== 'playing') return state;
       const adv = state.adventurers.find(a => a.id === action.id);
@@ -1272,6 +1300,10 @@ export function useGameState() {
     dispatch({ type: 'SPEND_UPGRADE_POINT', adventurerId, stat });
   }, []);
 
+  const refundUpgradePoint = useCallback((adventurerId: string, stat: 'hp' | 'attack' | 'defense') => {
+    dispatch({ type: 'REFUND_UPGRADE_POINT', adventurerId, stat });
+  }, []);
+
   const prestigeAdventurer = useCallback((id: string) => {
     dispatch({ type: 'PRESTIGE_ADVENTURER', id });
   }, []);
@@ -1307,6 +1339,7 @@ export function useGameState() {
     hireUpgrade,
     sellMaterials,
     spendUpgradePoint,
+    refundUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
     abandonBounty,

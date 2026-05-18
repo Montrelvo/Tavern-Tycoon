@@ -178,6 +178,7 @@ export default function App() {
     hireUpgrade,
     sellMaterials,
     spendUpgradePoint,
+    refundUpgradePoint,
     prestigeAdventurer,
     acceptBounty,
     abandonBounty,
@@ -335,6 +336,7 @@ export default function App() {
           adventurers={state.adventurers}
           gold={state.gold}
           onSpendUpgradePoint={spendUpgradePoint}
+          onRefundUpgradePoint={refundUpgradePoint}
           onPrestigeAdventurer={prestigeAdventurer}
         />
       )}

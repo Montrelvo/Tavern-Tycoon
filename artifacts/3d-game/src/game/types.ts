@@ -119,6 +119,7 @@ export type GameAction =
   | { type: 'SELL_MATERIALS' }
   | { type: 'ROOM_INCOME' }
   | { type: 'SPEND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' }
+  | { type: 'REFUND_UPGRADE_POINT'; adventurerId: string; stat: 'hp' | 'attack' | 'defense' }
   | { type: 'PRESTIGE_ADVENTURER'; id: string }
   | { type: 'ACCEPT_BOUNTY'; bountyId: string }
   | { type: 'ABANDON_BOUNTY'; bountyId: string }
