@@ -1584,26 +1584,30 @@ export function HUD({
               </span>
             </div>
           )}
-          <button
-            onClick={onNewGame}
-            title="Wipe save and start a new game"
-            style={{
-              position: 'absolute', top: 8, right: 8,
-              background: 'rgba(60,20,5,0.8)',
-              border: '1px solid #5c3315',
-              borderRadius: 5,
-              color: '#7a6a5a',
-              fontFamily: 'serif',
-              fontSize: 10,
-              padding: '2px 7px',
-              cursor: 'pointer',
-              letterSpacing: 0.3,
-            }}
-          >
-            New Game
-          </button>
         </div>
       </div>
+
+      {/* New Game button — fixed top-right, outside all panels */}
+      <button
+        onClick={onNewGame}
+        title="Wipe save and start a new game"
+        style={{
+          position: 'fixed', top: 12, right: 16,
+          background: 'rgba(60,20,5,0.8)',
+          border: '1px solid #5c3315',
+          borderRadius: 5,
+          color: '#7a6a5a',
+          fontFamily: 'serif',
+          fontSize: 10,
+          padding: '2px 7px',
+          cursor: 'pointer',
+          letterSpacing: 0.3,
+          pointerEvents: 'auto',
+          zIndex: 110,
+        }}
+      >
+        New Game
+      </button>
 
       {/* Left panel */}
       <LeftPanel
