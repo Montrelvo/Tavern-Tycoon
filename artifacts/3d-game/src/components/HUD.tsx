@@ -807,6 +807,44 @@ function ActiveQuestItem({ quest }: { quest: Quest }) {
   );
 }
 
+function ActiveBountyItem({ bounty }: { bounty: BountyQuest }) {
+  const typeColor = QUEST_TYPE_COLORS[bounty.targetMonsterType] ?? '#c8960c';
+  const pct = bounty.requiredKills > 0
+    ? Math.min(1, bounty.currentKills / bounty.requiredKills)
+    : 0;
+
+  return (
+    <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #3d2410' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+        <span style={{
+          fontSize: 9, fontWeight: 'bold', color: typeColor,
+          background: `${typeColor}22`, border: `1px solid ${typeColor}44`,
+          borderRadius: 3, padding: '1px 4px', flexShrink: 0,
+        }}>
+          {QUEST_TYPE_LABELS[bounty.targetMonsterType]}
+        </span>
+        <div style={{ color: '#e8d5a0', fontSize: 11, fontWeight: 'bold', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {bounty.name}
+        </div>
+        <span style={{ color: '#b0a080', fontSize: 10, flexShrink: 0 }}>
+          {bounty.currentKills}/{bounty.requiredKills}
+        </span>
+      </div>
+      <div style={{
+        height: 4, borderRadius: 2, background: '#2a1a08',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%', borderRadius: 2,
+          width: `${pct * 100}%`,
+          background: pct >= 1 ? '#2ecc71' : typeColor,
+          transition: 'width 0.3s',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function QuestCard({ quest, availableAdventurers, onDispatch }: {
   quest: Quest;
   availableAdventurers: Adventurer[];
@@ -1312,12 +1350,14 @@ function LeftPanel({ roster, wanderers, selectedAdventurerId, onSelectAdventurer
   );
 }
 
-function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
+function RightPanel({ activeQuests, activeBounties, gameLog, onToggleQuestBoard }: {
   activeQuests: Quest[];
+  activeBounties: BountyQuest[];
   gameLog: string[];
   onToggleQuestBoard: () => void;
 }) {
   const [questsOpen, setQuestsOpen] = useState(true);
+  const [bountiesOpen, setBountiesOpen] = useState(true);
   const [logOpen, setLogOpen] = useState(true);
 
   return (
@@ -1354,6 +1394,17 @@ function RightPanel({ activeQuests, gameLog, onToggleQuestBoard }: {
             color="#f39c12"
           />
           {questsOpen && activeQuests.map(q => <ActiveQuestItem key={q.id} quest={q} />)}
+        </div>
+      )}
+
+      {activeBounties.length > 0 && (
+        <div style={panelStyle}>
+          <CollapsibleHeader
+            label="Active Bounties" count={activeBounties.length}
+            open={bountiesOpen} onToggle={() => setBountiesOpen(o => !o)}
+            color="#c8960c"
+          />
+          {bountiesOpen && activeBounties.map(b => <ActiveBountyItem key={b.id} bounty={b} />)}
         </div>
       )}
 
@@ -1503,6 +1554,7 @@ export function HUD({
       {/* Right panel */}
       <RightPanel
         activeQuests={activeQuests}
+        activeBounties={bounties.filter(b => b.status === 'active')}
         gameLog={gameLog}
         onToggleQuestBoard={onToggleQuestBoard}
       />
